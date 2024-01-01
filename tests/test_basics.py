@@ -13,6 +13,9 @@ sys.path.insert(0,'/Users/ashwin/Documents/Y4 project Brain Human Interfaces/Gen
 
 
 def testGameStartsAndExitsWithNoError():
+    sys.path.insert(0,'/Users/ashwin/Documents/Y4 project Brain Human Interfaces/General 4th year Github repo/PilotExperiment/BrainMachineInterfaces_pilotExperiment')
+
+
     with pytest.warns(UserWarning):
         warnings.warn("DeprecationWarning", UserWarning) 
         proc1 = multiprocessing.Process(target=runGame, args=())
@@ -41,6 +44,7 @@ def endGameByQ():
     keyboard.release('q')
 
 def testGameRuns():
+    sys.path.insert(0,'/Users/ashwin/Documents/Y4 project Brain Human Interfaces/General 4th year Github repo/PilotExperiment/BrainMachineInterfaces_pilotExperiment')
     from variables import initialiseGame
     from setup import runGameSetup
     from gameDynamics import startupGame
