@@ -17,9 +17,6 @@ def runGameSetup(gameEngine):
     pygame.display.set_caption('Display Variable Example')
 
 
-    # Set up the colors
-    gameEngine.blue = (0, 0, 255)
-    gameEngine.white = (255, 255, 255)
 
     # Set up fonts
     gameEngine.font = pygame.font.Font(None, 36)  # You can also use a specific font.

@@ -18,6 +18,28 @@ class GameEngine():
 
     def __init__(self):
         self.gameStatistics = GameStats()
+    def checkRunningStatus(self):
+        if self.testMode == True:
+            if pygame.time.get_ticks() > self.testTime:
+                self.quitProgram()
+    def gatherKeyPresses(self):
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.quitProgram()
+                
+            
+            # or get movement from key presses
+            if event.type == pygame.KEYDOWN:
+                pass
+
+            if event.type == pygame.KEYUP:
+                if event.key == ord('q'):
+                    self.quitProgram()
+    
+    def quitProgram(self):
+        self.running = False
+
 
 class Debugger():
     """

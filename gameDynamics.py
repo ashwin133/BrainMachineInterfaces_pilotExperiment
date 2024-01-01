@@ -17,31 +17,19 @@ from variables import initialiseGame
 
 
 def startupGame(gameEngine):
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                pygame.quit()
-                return gameEngine
-            
+    gameEngine.running = True
+    while gameEngine.running:
 
-            # or get movement from key presses
-            if event.type == pygame.KEYDOWN:
-                pass
+        
+        
 
-            if event.type == pygame.KEYUP:
-                if event.key == ord('q'):
-                    running = False
-                    pygame.quit()
-                    return gameEngine
-            
+        gameEngine.gatherKeyPresses()
 
         # Fill the screen with blue
-        gameEngine.screen.fill(gameEngine.blue)
+        gameEngine.screen.fill(gameEngine.colours['BLUE'])
 
         # Render the text representing the variable
-        gameEngine.text = gameEngine.font.render(f'Score: {gameEngine.gameStatistics.score}', True, gameEngine.white)  # Create a text surface
+        gameEngine.text = gameEngine.font.render(f'Score: {gameEngine.gameStatistics.score}', True, gameEngine.colours['WHITE'])  # Create a text surface
         gameEngine.text_rect = gameEngine.text.get_rect(center=(gameEngine.screen_width/2, gameEngine.screen_height/2))  # Get the rectangular area of the text
 
         # Blit the text onto the screen
@@ -49,13 +37,15 @@ def startupGame(gameEngine):
 
         # Update the display
         pygame.display.flip()
-
+        
+        gameEngine.checkRunningStatus()
     # End Pygame
     pygame.quit()
+    return gameEngine
 
 
-if __name__ == "__main__":
-    gameEngine = initialiseGame()
-    gameEngine = runGameSetup(gameEngine=gameEngine)
-    startupGame(gameEngine=gameEngine)
+# if __name__ == "__main__":
+#     gameEngine = initialiseGame()
+#     gameEngine = runGameSetup(gameEngine=gameEngine)
+#     startupGame(gameEngine=gameEngine)
 

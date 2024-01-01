@@ -12,7 +12,7 @@ sys.path.insert(0,'/Users/ashwin/Documents/Y4 project Brain Human Interfaces/Gen
 
 
 
-def testGameStartsWithNoError():
+def testGameStartsAndExitsWithNoError():
     with pytest.warns(UserWarning):
         warnings.warn("DeprecationWarning", UserWarning) 
         proc1 = multiprocessing.Process(target=runGame, args=())
@@ -21,6 +21,7 @@ def testGameStartsWithNoError():
         proc2.start()
         proc1.join()
         proc2.join()
+        
 
 
 def runGame():
@@ -39,3 +40,16 @@ def endGameByQ():
     keyboard.press('q')
     keyboard.release('q')
 
+def testGameRuns():
+    from variables import initialiseGame
+    from setup import runGameSetup
+    from gameDynamics import startupGame
+    gameEngine = initialiseGame()
+    gameEngine.testMode = True
+    gameEngine.testTime = 3000
+    # next run game setup to load game configurations 
+    gameEngine = runGameSetup(gameEngine=gameEngine)
+    startupGame(gameEngine=gameEngine)
+
+if __name__ == "__main__":
+    pass
