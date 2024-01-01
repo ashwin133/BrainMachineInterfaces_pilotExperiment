@@ -26,6 +26,8 @@ def runGameSetup(gameEngine):
 
     gameEngine.createMaze()
     
+    # start the clock
+    gameEngine.clock = pygame.time.Clock()
     return gameEngine
 
 if __name__ == "__main__":

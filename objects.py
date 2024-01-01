@@ -28,30 +28,57 @@ class Maze():
 
         
 
+import pygame
+import math
+import random
+
 class Wall:
-    def __init__(self,gameEngine,top_left, bottom_right,id, color = None):
+    def __init__(self, gameEngine, top_left, bottom_right, id, color=None):
         """
-        Initialize a Wall object using the top left and bottom right points.
+        Initialize a Wall object with oscillation properties.
 
         Inputs:
         @param: top_left (tuple): The (x, y) coordinates for the top left corner.
         @param: bottom_right (tuple): The (x, y) coordinates for the bottom right corner.
-        @param: color (tuple): Wall color
+        @param: color (tuple): Wall color.
+        @param: oscillation_axis (str): Axis of oscillation ('vertical' or 'horizontal').
+        @param: oscillation_range (int): Maximum distance the wall moves from the initial position.
+        @param: oscillation_speed (float): Speed of oscillation.
         """
+        self.move = True
+        oscillationTypes = ['vertical','horizontal']
         self.id = id
-        self.top_left = top_left
-        self.bottom_right = bottom_right
+        self.initial_top_left = top_left
+        self.initial_bottom_right = bottom_right
+        self.oscillation_axis = random.choice(oscillationTypes)
+        self.oscillation_range = random.uniform(40,50)
+        self.oscillation_speed = random.uniform(0.23,0.3)
+        self.time = 0  # Internal timer for oscillation
+
         # Calculate width and height based on the top left and bottom right points
         self.width = bottom_right[0] - top_left[0]
         self.height = bottom_right[1] - top_left[1]
-        
+
         # Create the pygame.Rect object
         self.rect = pygame.Rect(top_left, (self.width, self.height))
-        # set default color
-        if color == None:
-            self.color = gameEngine.colours['BLACK']
-        else:
-            self.color = color
+        # Set default color
+        self.color = color if color else gameEngine.colours['BLACK']
+
+    def update(self):
+        """
+        Update the wall position to make it oscillate.
+        """
+        if self.id > 3 and self.move == True:
+            # Calculate the oscillation offset
+            if self.oscillation_axis == 'vertical':
+                offset = self.oscillation_range * math.sin(self.time * self.oscillation_speed)
+                self.rect.y = self.initial_top_left[1] + offset
+            elif self.oscillation_axis == 'horizontal':
+                offset = self.oscillation_range * math.sin(self.time * self.oscillation_speed)
+                self.rect.x = self.initial_top_left[0] + offset
+
+            # Increment the internal timer
+            self.time += 1
 
     def draw(self, gameEngine):
         """
@@ -75,6 +102,7 @@ class GameEngine():
         self.maze = Maze(self.mazeDims,self)
     def drawMaze(self):
         for wall in self.maze.wallList:
+            wall.update()
             wall.draw(self)
     def checkRunningStatus(self):
         if self.testMode == True:

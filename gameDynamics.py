@@ -40,6 +40,10 @@ def startupGame(gameEngine):
         # Update the display
         pygame.display.flip()
         
+        
+
+        
+        gameEngine.clock.tick(gameEngine.fps)
         gameEngine.checkRunningStatus()
     # End Pygame
     pygame.quit()

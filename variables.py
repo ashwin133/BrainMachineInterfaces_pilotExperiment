@@ -65,6 +65,9 @@ def initialiseGame():
     # initialise out of test mode
     gameEngine.testMode = False
 
+    # 
+    gameEngine.fps = 30
+
     return gameEngine 
 
 if __name__ == "__main__":
