@@ -28,6 +28,9 @@ def runGameSetup(gameEngine):
     
     # start the clock
     gameEngine.clock = pygame.time.Clock()
+
+    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=20, height=20, color=(255, 255, 255))
+
     return gameEngine
 
 if __name__ == "__main__":

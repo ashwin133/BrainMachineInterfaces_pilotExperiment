@@ -37,6 +37,12 @@ def startupGame(gameEngine):
 
         # draw the maze
         gameEngine.drawMaze()
+
+        # draw the right cursor
+        gameEngine.cursor.handle_keys()  # Adjust cursor velocity based on keys pressed
+        gameEngine.cursor.update()       # Update cursor position
+        gameEngine.cursor.draw(gameEngine.screen)   # Draw cursor
+
         # Update the display
         pygame.display.flip()
         

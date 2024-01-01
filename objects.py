@@ -90,6 +90,77 @@ class Wall:
         pygame.draw.rect(gameEngine.screen, self.color, self.rect)
 
 
+
+
+class Cursor:
+    def __init__(self, x, y, width, height, color):
+        """
+        Initialize a velocity-controlled cursor with inertia.
+
+        Args:
+            x (int): The x-coordinate of the cursor's starting position.
+            y (int): The y-coordinate of the cursor's starting position.
+            width (int): The width of the cursor.
+            height (int): The height of the cursor.
+            color (tuple): The color of the cursor in RGB.
+        """
+        self.rect = pygame.Rect(x, y, width, height)
+        self.color = color
+        self.velocity = [0, 0]  # Velocity in pixels per frame (x, y)
+        self.acceleration = 2    # Acceleration rate
+        self.friction = 0.95      # Friction coefficient
+
+    def update(self):
+        """
+        Update the cursor's position based on its velocity, applying friction.
+        """
+        # Apply friction to the velocity to create inertia
+        self.velocity[0] *= self.friction
+        self.velocity[1] *= self.friction
+
+        # Update the cursor's position
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+
+        # Keep the cursor within the window bounds
+        if self.rect.left < 0:
+            self.rect.left = 0
+            self.velocity[0] = 0
+        if self.rect.right > pygame.display.get_surface().get_width():
+            self.rect.right = pygame.display.get_surface().get_width()
+            self.velocity[0] = 0
+        if self.rect.top < 0:
+            self.rect.top = 0
+            self.velocity[1] = 0
+        if self.rect.bottom > pygame.display.get_surface().get_height():
+            self.rect.bottom = pygame.display.get_surface().get_height()
+            self.velocity[1] = 0
+
+    def draw(self, screen):
+        """
+        Draw the cursor onto the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the cursor on.
+        """
+        pygame.draw.rect(screen, self.color, self.rect)
+
+    def handle_keys(self):
+        """
+        Adjust the cursor's velocity based on key presses.
+        """
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.velocity[0] -= self.acceleration  # Accelerate left
+        if keys[pygame.K_RIGHT]:
+            self.velocity[0] += self.acceleration  # Accelerate right
+
+        if keys[pygame.K_UP]:
+            self.velocity[1] -= self.acceleration  # Accelerate up
+        if keys[pygame.K_DOWN]:
+            self.velocity[1] += self.acceleration  # Accelerate down
+
+
 class GameEngine():
     """
     Holds all information regarding game mechanics and objects
