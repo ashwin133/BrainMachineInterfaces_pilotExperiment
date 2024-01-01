@@ -93,7 +93,7 @@ class Wall:
 
 
 class Cursor:
-    def __init__(self, x, y, width, height, color,frozenColour = (255,0,0)):
+    def __init__(self, x, y, width, height, color,imagePath,frozenColour = (255,0,0),useImg = True):
         """
         Initialize a velocity-controlled cursor with inertia.
 
@@ -103,7 +103,9 @@ class Cursor:
             width (int): The width of the cursor.
             height (int): The height of the cursor.
             color (tuple): The color of the cursor in RGB.
+
         """
+        self.useImg = useImg
         self.rect = pygame.Rect(x, y, width, height)
         self.startingRect = self.rect
         self.healthyCursorColour = color
@@ -116,6 +118,12 @@ class Cursor:
         self.cooldown = 2000 # cooldown time when frozen from hitting wall in ms 
         self.last_hit_time = None # store time of hit
         self.resetLatch = 0
+        # Scale the image
+        if self.useImg:
+            img = pygame.image.load(imagePath) 
+            scaledImage = pygame.transform.scale(img, (width, height))
+            self.image = scaledImage
+            self.rect = self.image.get_rect(topleft=(x, y))
 
     def update(self):
         """
@@ -155,7 +163,11 @@ class Cursor:
         Args:
             screen (pygame.Surface): The surface to draw the cursor on.
         """
-        pygame.draw.rect(screen, self.color, self.rect)
+        if self.useImg:
+            screen.blit(self.image, self.rect)
+
+        else:
+            pygame.draw.rect(screen, self.color, self.rect)
 
     def handle_keys(self):
         """
@@ -192,6 +204,53 @@ class Cursor:
 
 
 
+
+class Target:
+    def __init__(self, width, height, color,gameEngine):
+        """
+        Initialize a target with width, height, and color.
+
+        Args:
+            width (int): The width of the target.
+            height (int): The height of the target.
+            color (tuple): The color of the target in RGB.
+        """
+        self.width = width
+        self.height = height
+        self.color = color
+        self.rect = pygame.Rect(0, 0, width, height)  # initialise it
+        self.place_randomly(gameEngine)
+
+    def draw(self, gameEngine):
+        """
+        Draw the target onto the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the target on.
+        """
+        pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+
+    def place_randomly(self,gameEngine):
+        """
+        Place the target at a random location on the screen, avoiding walls.
+
+        Args:
+            screen_width (int): The width of the screen.
+            screen_height (int): The height of the screen.
+            walls (list): A list of pygame.Rect objects representing the walls.
+        """
+        placed = False
+        while not placed:
+            # Generate a random location
+            x = random.randint(0, gameEngine.screen_width - self.width)
+            y = random.randint(0, gameEngine.screen_height - self.height)
+            self.rect.topleft = (x, y)
+
+            # Check if the target is in a wall
+            if not any(wall.rect.colliderect(self.rect) for wall in gameEngine.maze.wallList):
+                placed = True
+
+
 class GameEngine():
     """
     Holds all information regarding game mechanics and objects
@@ -199,7 +258,28 @@ class GameEngine():
 
     def __init__(self):
         self.gameStatistics = GameStats()
+        self.lastTargetPlacedTime = 0
+        self.targets = []
+
+    def checkPlaceTarget(self):
+        if pygame.time.get_ticks() -  self.lastTargetPlacedTime > self.targetPlaceFrequency:
+            # place target every self.targetPlaceFrequency seconds
+            self.targets.append(Target(self.targetWidth,self.targetHeight,self.colours['RED'],self))
+            self.lastTargetPlacedTime = pygame.time.get_ticks()
     
+    def drawTargets(self):
+        for target in self.targets:
+            target.draw(self)
+    
+    def checkIfCursorHitTarget(self):
+        for idx,target in enumerate(self.targets):
+            if target.rect.colliderect(self.cursor.rect):
+                #self.targets[idx].color = self.colours['GREEN']
+                self.gameStatistics.score += 25
+                del self.targets[idx]
+                break
+
+
     def checkIfCursorHitWall(self):
         self.debugger.dispMsg(3,'Entered game engine cursor hit wall check',frequency = 100)
         if self.cursor.is_frozen == False and pygame.time.get_ticks() > self.cursor.resetLatch:

@@ -67,6 +67,11 @@ def initialiseGame():
     # 
     gameEngine.fps = 30
 
+    # metadata for placing target
+    gameEngine.targetPlaceFrequency = 5000
+    gameEngine.targetWidth = 30
+    gameEngine.targetHeight = 30
+
     return gameEngine 
 
 if __name__ == "__main__":

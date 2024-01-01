@@ -27,6 +27,10 @@ def startupGame(gameEngine):
 
         gameEngine.checkIfCursorHitWall()
 
+        gameEngine.checkIfCursorHitTarget()
+        # every X seconds place a target
+        gameEngine.checkPlaceTarget()
+
         # Fill the screen with blue
         gameEngine.screen.fill(gameEngine.colours['BLUE'])
 
@@ -44,6 +48,9 @@ def startupGame(gameEngine):
         gameEngine.cursor.handle_keys()  # Adjust cursor velocity based on keys pressed
         gameEngine.cursor.update()       # Update cursor position
         gameEngine.cursor.draw(gameEngine.screen)   # Draw cursor
+
+        # draw all targets
+        gameEngine.drawTargets()
 
         # Update the display
         pygame.display.flip()
