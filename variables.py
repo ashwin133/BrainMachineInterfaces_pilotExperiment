@@ -10,8 +10,32 @@ from objects import *
 
 
 
-
 def initialiseGame():
+
+    import numpy as np
+
+    mazeDims = np.array([
+    [   5,    5, 1265,   25],  # Top border with gap
+    [   5,    5,   25,  735],  # Left border with gap
+    [   5,  715, 1265,  735],  # Bottom border with gap
+    [1245,    5, 1265,  735],  # Right border with gap
+    [ 105,  105,  295,  115],  # Inner horizontal walls with gaps
+    [ 505,  205,  695,  215],
+    [ 205,  305,  445,  315],
+    [ 605,  405,  895,  415],
+    [ 305,  505,  595,  515],
+    [ 105,  605,  245,  615],
+    [ 805,  605,  995,  615],
+    [ 105,  105,  115,  235],  # Inner vertical walls with gaps
+    [ 205,  365,  215,  595],
+    [ 405,  205,  415,  485],
+    [ 605,  415,  615,  595],
+    [ 805,  105,  815,  285],
+    [1005,  415, 1015,  595],
+    [1155,  155, 1165,  335]
+    ])
+
+
 
     # colours
     BLUE = (25, 25, 200)
@@ -34,6 +58,9 @@ def initialiseGame():
 
     # store colour settings
     gameEngine.colours = colours
+
+    #store maze info
+    gameEngine.mazeDims = mazeDims
 
     # initialise out of test mode
     gameEngine.testMode = False

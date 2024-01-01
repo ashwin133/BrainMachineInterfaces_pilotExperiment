@@ -11,6 +11,58 @@ class GameStats():
     def __init__(self):
         pass
 
+
+class Wall():
+    import pygame
+
+import pygame
+
+class Maze():
+
+    def __init__(self,mazeDims,gameEngine):
+        self.wallList = []
+        # def each wall and add it to list
+        for wall in range(len(mazeDims[:,0])):
+            wall_ = Wall(gameEngine,(mazeDims[wall,0],mazeDims[wall,1]),(mazeDims[wall,2],mazeDims[wall,3]),wall)
+            self.wallList.append(wall_)
+
+        
+
+class Wall:
+    def __init__(self,gameEngine,top_left, bottom_right,id, color = None):
+        """
+        Initialize a Wall object using the top left and bottom right points.
+
+        Inputs:
+        @param: top_left (tuple): The (x, y) coordinates for the top left corner.
+        @param: bottom_right (tuple): The (x, y) coordinates for the bottom right corner.
+        @param: color (tuple): Wall color
+        """
+        self.id = id
+        self.top_left = top_left
+        self.bottom_right = bottom_right
+        # Calculate width and height based on the top left and bottom right points
+        self.width = bottom_right[0] - top_left[0]
+        self.height = bottom_right[1] - top_left[1]
+        
+        # Create the pygame.Rect object
+        self.rect = pygame.Rect(top_left, (self.width, self.height))
+        # set default color
+        if color == None:
+            self.color = gameEngine.colours['BLACK']
+        else:
+            self.color = color
+
+    def draw(self, gameEngine):
+        """
+        Draw the wall onto a screen.
+
+        Inputs:
+        @param: screen (pygame.Surface): The Pygame surface to draw the wall on.
+        """
+        pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+
+
 class GameEngine():
     """
     Holds all information regarding game mechanics and objects
@@ -18,6 +70,12 @@ class GameEngine():
 
     def __init__(self):
         self.gameStatistics = GameStats()
+
+    def createMaze(self):
+        self.maze = Maze(self.mazeDims,self)
+    def drawMaze(self):
+        for wall in self.maze.wallList:
+            wall.draw(self)
     def checkRunningStatus(self):
         if self.testMode == True:
             if pygame.time.get_ticks() > self.testTime:
@@ -39,6 +97,9 @@ class GameEngine():
     
     def quitProgram(self):
         self.running = False
+
+
+
 
 
 class Debugger():

@@ -24,6 +24,8 @@ def runGameSetup(gameEngine):
     # Define the variable you want to display
     gameEngine.gameStatistics.score = 0  # Example variable
 
+    gameEngine.createMaze()
+    
     return gameEngine
 
 if __name__ == "__main__":

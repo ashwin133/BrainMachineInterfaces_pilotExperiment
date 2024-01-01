@@ -35,6 +35,8 @@ def startupGame(gameEngine):
         # Blit the text onto the screen
         gameEngine.screen.blit(gameEngine.text, gameEngine.text_rect)
 
+        # draw the maze
+        gameEngine.drawMaze()
         # Update the display
         pygame.display.flip()
         

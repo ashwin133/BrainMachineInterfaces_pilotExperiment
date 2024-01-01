@@ -13,11 +13,12 @@ import os
 # Get the directory of the current file (test_basics.py)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Calculate the relative path to the directory where 'variables' module is located
+# relative path
 variables_dir = os.path.join(current_dir, '../')
 
 # Add this directory to sys.path
 sys.path.insert(0, variables_dir)
+
 def testGameRuns():
     
     from variables import initialiseGame
