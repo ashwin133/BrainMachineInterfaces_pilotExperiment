@@ -3,6 +3,8 @@ create classes for game
 """
 import pygame
 import numpy as np
+import queue
+import math
 
 class GameStats():
     """
@@ -12,9 +14,25 @@ class GameStats():
         pass
 
 
-class Wall():
-    import pygame
 
+class Minion:
+    def __init__(self,x,y, width, height, speed):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.speed = speed
+        self.image = pygame.Surface((width,height))
+        self.image.fill((255,255,0))
+    
+    def moveTowardsCursor(self,gameEngine):
+        angle = math.atan2(gameEngine.cursor.rect.y - self.y, gameEngine.cursor.rect.x - self.x)
+        self.x += self.speed * math.cos(angle)
+        self.y += self.speed * math.sin(angle)
+    
+    def draw(self,gameEngine):
+        gameEngine.screen.blit(self.image, (self.x,self.y))
+        
 import pygame
 
 class Maze():
@@ -93,7 +111,7 @@ class Wall:
 
 
 class Cursor:
-    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True):
+    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True,delaySamples = 0,unstableMode = False):
         """
         Initialize a velocity-controlled cursor with inertia.
 
@@ -125,6 +143,16 @@ class Cursor:
                 self.images[key] = pygame.transform.scale(self.images[key], (width, height))
             #self.rect = self.image.get_rect(topleft=(x, y))
         self.currentImage = self.images['right']
+        self.delayLength = delaySamples
+        self.unstableMode = unstableMode
+        if self.unstableMode:
+            if delaySamples != 0:
+                self.velocity_queue = queue.Queue(maxsize=delaySamples)
+                for _ in range(delaySamples):
+                    self.velocity_queue.put([0,0])
+                print(self.velocity_queue)
+                
+
     def update(self):
         """
         Update the cursor's position based on its velocity, applying friction.
@@ -204,20 +232,46 @@ class Cursor:
         else:
             pygame.draw.rect(screen, self.color, self.rect)
 
-    def handle_keys(self):
+    def handle_keys(self,controlMethod = 'Mouse'):
         """
         Adjust the cursor's velocity based on key presses.
         """
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
-            self.velocity[0] -= self.acceleration  # Accelerate left
-        if keys[pygame.K_RIGHT]:
-            self.velocity[0] += self.acceleration  # Accelerate right
+        if controlMethod == 'Keypad':
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT]:
+                self.velocity[0] -= self.acceleration  # Accelerate left
+            if keys[pygame.K_RIGHT]:
+                self.velocity[0] += self.acceleration  # Accelerate right
 
-        if keys[pygame.K_UP]:
-            self.velocity[1] -= self.acceleration  # Accelerate up
-        if keys[pygame.K_DOWN]:
-            self.velocity[1] += self.acceleration  # Accelerate down
+            if keys[pygame.K_UP]:
+                self.velocity[1] -= self.acceleration  # Accelerate up
+            if keys[pygame.K_DOWN]:
+                self.velocity[1] += self.acceleration  # Accelerate down
+
+        elif controlMethod == 'Mouse':
+            # Get current mouse position
+            mouseX, mouseY = pygame.mouse.get_pos()
+
+            # Calculate distance from the cursor to the mouse position
+            distanceX = mouseX - self.rect.centerx
+            distanceY = mouseY - self.rect.centery
+
+            if self.unstableMode:
+                if self.delayLength > 0:
+                    distanceX_, distanceY_ = self.velocity_queue.get()
+                    self.velocity_queue.put([distanceX, distanceY])
+
+                    # Update the cursor's position to the oldest value in the queue
+                        
+                # Adjust the velocity based on the distance to the mouse position accounting for a scale factor
+                self.velocity[0] += distanceX_ * 0.02
+                self.velocity[1] += distanceY_ * 0.02
+                # positiveFeedbackFactor = 0.0  # Adjust as needed
+                # self.velocity[0] += self.velocity[0] * positiveFeedbackFactor
+                # self.velocity[1] += self.velocity[1] * positiveFeedbackFactor
+            else:
+                self.velocity[0] += distanceX * 0.02
+                self.velocity[1] += distanceY * 0.02
     
     def checkIfCursorHitWall(self,gameEngine):
         gameEngine.debugger.dispMsg(5,'Entered  cursor hit wall check',frequency = 100)
@@ -295,6 +349,18 @@ class GameEngine():
         self.gameStatistics = GameStats()
         self.lastTargetPlacedTime = 0
         self.targets = []
+        self.lastMinionPlacedTime = 0
+        self.minions = []
+
+    def checkSpawnMinion(self):
+        if pygame.time.get_ticks() -  self.lastMinionPlacedTime > self.minionPlaceFrequency:
+            # place target every self.targetPlaceFrequency seconds
+            self.minions.append(Minion(300,300,self.minionWidth,self.minionHeight,self.minionSpeed))
+            self.lastMinionPlacedTime = pygame.time.get_ticks()
+    def updateAndDrawMinion(self):
+        for minion in self.minions:
+            minion.moveTowardsCursor(self)
+            minion.draw(self)
 
     def checkPlaceTarget(self):
         if pygame.time.get_ticks() -  self.lastTargetPlacedTime > self.targetPlaceFrequency:

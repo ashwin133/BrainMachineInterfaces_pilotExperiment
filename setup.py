@@ -34,7 +34,13 @@ def runGameSetup(gameEngine):
     # cursor path
     cursorPaths = {'left': "Images/fish_left.png", 'right': "Images/fish_right.png",
                    'down': "Images/fish_down.png",'up': "Images/fish_up.png"}
-    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=40, height=40, color=(255, 255, 255),imagePaths=cursorPaths)
+    if gameEngine.unstableMode:
+        unstableCursor = True
+        delayLength = 4
+    else:
+        unstableCursor = False
+        delayLength = 0
+    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=40, height=40, color=(255, 255, 255),imagePaths=cursorPaths,delaySamples=delayLength,unstableMode=unstableCursor)
     
 
     return gameEngine

@@ -72,6 +72,15 @@ def initialiseGame():
     gameEngine.targetWidth = 40
     gameEngine.targetHeight = 40
 
+    # load in unstable mode
+    gameEngine.unstableMode = False
+
+    # metadata for placing minion
+    gameEngine.minionPlaceFrequency = 10000
+    gameEngine.minionWidth = 40
+    gameEngine.minionHeight = 40
+    gameEngine.minionSpeed = 4
+
     return gameEngine 
 
 if __name__ == "__main__":

@@ -31,6 +31,9 @@ def startupGame(gameEngine):
         # every X seconds place a target
         gameEngine.checkPlaceTarget()
 
+        # every x seconds 
+        gameEngine.checkSpawnMinion()
+
         # Fill the screen with blue
         gameEngine.screen.fill(gameEngine.colours['BLUE'])
 
@@ -48,6 +51,9 @@ def startupGame(gameEngine):
         gameEngine.cursor.handle_keys()  # Adjust cursor velocity based on keys pressed
         gameEngine.cursor.update()       # Update cursor position
         gameEngine.cursor.draw(gameEngine.screen)   # Draw cursor
+
+        # update and draw minion
+        gameEngine.updateAndDrawMinion()
 
         # draw all targets
         gameEngine.drawTargets()
