@@ -93,7 +93,7 @@ class Wall:
 
 
 class Cursor:
-    def __init__(self, x, y, width, height, color,imagePath,frozenColour = (255,0,0),useImg = True):
+    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True):
         """
         Initialize a velocity-controlled cursor with inertia.
 
@@ -113,18 +113,18 @@ class Cursor:
         self.frozenCursorColour = frozenColour  # set at red
         self.velocity = [0, 0]  # Velocity in pixels per frame (x, y)
         self.acceleration = 2    # Acceleration rate
-        self.friction = 0.95      # Friction coefficient
+        self.friction = 0.92      # Friction coefficient
         self.is_frozen = False
         self.cooldown = 2000 # cooldown time when frozen from hitting wall in ms 
         self.last_hit_time = None # store time of hit
         self.resetLatch = 0
         # Scale the image
         if self.useImg:
-            img = pygame.image.load(imagePath) 
-            scaledImage = pygame.transform.scale(img, (width, height))
-            self.image = scaledImage
-            self.rect = self.image.get_rect(topleft=(x, y))
-
+            self.images = {direction: pygame.image.load(path) for direction, path in imagePaths.items()}
+            for key in self.images.keys():
+                self.images[key] = pygame.transform.scale(self.images[key], (width, height))
+            #self.rect = self.image.get_rect(topleft=(x, y))
+        self.currentImage = self.images['right']
     def update(self):
         """
         Update the cursor's position based on its velocity, applying friction.
@@ -155,6 +155,41 @@ class Cursor:
             if self.rect.bottom > pygame.display.get_surface().get_height():
                 self.rect.bottom = pygame.display.get_surface().get_height()
                 self.velocity[1] = 0
+        self.selectImageBasedOnDirection()
+            
+    def selectImageBasedOnDirection(self):
+        # change image based on velocity
+        try:
+            velAngle = np.rad2deg(np.arctan(np.abs(self.velocity[1]/self.velocity[0])))
+        except ZeroDivisionError:
+            if self.velocity[1] > 0: 
+                velAngle = 270
+            elif self.velocity[1] < 0:
+                velAngle = 90
+            else:
+                velAngle = 0
+        
+
+        if self.velocity[0] > 0 and self.velocity[1] < 0:
+            velAngle = velAngle
+        elif self.velocity[0] < 0 and self.velocity[1] < 0:
+            velAngle = 180 - velAngle
+        elif self.velocity[0] < 0 and self.velocity[1] > 0:
+            velAngle = 180 + velAngle
+        elif self.velocity[0] > 0 and self.velocity[1] > 0:
+            velAngle = 360 - velAngle
+        
+        print(velAngle)
+
+        if  45 < velAngle < 135:
+            self.currentImage = self.images['up']
+        elif 135 < velAngle < 225:
+            self.currentImage = self.images['left']
+        elif 225 < velAngle < 315:
+            self.currentImage = self.images['down']
+        elif velAngle < 45 or velAngle > 315:
+            self.currentImage = self.images['right']
+
 
     def draw(self, screen):
         """
@@ -164,7 +199,7 @@ class Cursor:
             screen (pygame.Surface): The surface to draw the cursor on.
         """
         if self.useImg:
-            screen.blit(self.image, self.rect)
+            screen.blit(self.currentImage, self.rect)
 
         else:
             pygame.draw.rect(screen, self.color, self.rect)
@@ -185,12 +220,12 @@ class Cursor:
             self.velocity[1] += self.acceleration  # Accelerate down
     
     def checkIfCursorHitWall(self,gameEngine):
-        gameEngine.debugger.dispMsg(3,'Entered  cursor hit wall check',frequency = 100)
+        gameEngine.debugger.dispMsg(5,'Entered  cursor hit wall check',frequency = 100)
         for wall in gameEngine.maze.wallList:
-            gameEngine.debugger.dispMsg(3,'Specific wall did not hit cursor',frequency = 100)
-            gameEngine.debugger.disp(3,'cursor rect',self.rect,'wall rect',wall.rect,frequency = 100)
+            gameEngine.debugger.dispMsg(5,'Specific wall did not hit cursor',frequency = 100)
+            gameEngine.debugger.disp(5,'cursor rect',self.rect,'wall rect',wall.rect,frequency = 100)
             if pygame.Rect.colliderect(self.rect,wall.rect):
-                    gameEngine.debugger.dispMsg(3,'Collision Detected')
+                    gameEngine.debugger.dispMsg(5,'Collision Detected')
                     self.is_frozen = True
                     self.last_hit_time = pygame.time.get_ticks()
                     self.color = self.frozenCursorColour

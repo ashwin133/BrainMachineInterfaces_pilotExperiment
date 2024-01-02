@@ -69,8 +69,8 @@ def initialiseGame():
 
     # metadata for placing target
     gameEngine.targetPlaceFrequency = 5000
-    gameEngine.targetWidth = 30
-    gameEngine.targetHeight = 30
+    gameEngine.targetWidth = 40
+    gameEngine.targetHeight = 40
 
     return gameEngine 
 

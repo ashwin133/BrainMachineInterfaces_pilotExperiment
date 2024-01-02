@@ -32,8 +32,9 @@ def runGameSetup(gameEngine):
     gameEngine.clock = pygame.time.Clock()
 
     # cursor path
-    cursorPath = "Images/fish.png"
-    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=30, height=30, color=(255, 255, 255),imagePath=cursorPath)
+    cursorPaths = {'left': "Images/fish_left.png", 'right': "Images/fish_right.png",
+                   'down': "Images/fish_down.png",'up': "Images/fish_up.png"}
+    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=40, height=40, color=(255, 255, 255),imagePaths=cursorPaths)
     
 
     return gameEngine
