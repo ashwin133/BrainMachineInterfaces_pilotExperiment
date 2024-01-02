@@ -40,9 +40,19 @@ def runGameSetup(gameEngine):
     else:
         unstableCursor = False
         delayLength = 0
-    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=40, height=40, color=(255, 255, 255),imagePaths=cursorPaths,delaySamples=delayLength,unstableMode=unstableCursor)
+    controlMethod = "Keypad"
+    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=40, height=40, color=(255, 255, 255),imagePaths=cursorPaths,delaySamples=delayLength,unstableMode=unstableCursor,controlMethod= controlMethod)
     
+    # initialise danger bar
+    gameEngine.spawnDangerBar()
 
+    # initialise skull zone image
+    skullImagePath = "Images/skull_bright_red.png"
+    gameEngine.skullImage = pygame.image.load(skullImagePath)
+
+    # get piranha image
+    pathToPiranhaImage = "Images/piranha.png"
+    gameEngine.piranhaImage = pygame.image.load(pathToPiranhaImage)
     return gameEngine
 
 if __name__ == "__main__":

@@ -15,23 +15,27 @@ def initialiseGame():
     import numpy as np
 
     mazeDims = np.array([
-    [   5,    5, 1265,   25],  # Top border with gap
-    [   5,    5,   25,  735],  # Left border with gap
+    [   5,    50, 1265,   75],  # Top border with gap
+    [   5,    50,   25,  735],  # Left border with gap
     [   5,  715, 1265,  735],  # Bottom border with gap
-    [1245,    5, 1265,  735],  # Right border with gap
-    [ 105,  105,  295,  125],  # Inner horizontal walls with gaps
-    [ 505,  205,  695,  225],
-    [ 205,  305,  445,  325],
-    [ 605,  405,  895,  425],
-    [ 305,  505,  595,  525],
-    [ 105,  605,  245,  625],
-    [ 805,  605,  995,  625],
-    [ 105,  105,  125,  235],  # Inner vertical walls with gaps
-    [ 205,  365,  225,  595],
-    [ 605,  415,  625,  595],
-    [ 805,  105,  825,  285],
-    [1005,  415, 1025,  595],
-    [1155,  155, 1175,  335]
+    [1245,    50, 1265,  735],  # Right border with gap 
+
+    # top left
+    [ 125,  165,  295,  185],  # top left horizontal
+
+    # top right
+    [ 805,  255,  1075,  275], # top right horizontal
+    [ 1055,  175,  1075,  320], # top right vertical
+
+    # bottom left
+    [ 205,  360,  445,  380], # bottom left horizontal
+    [ 205,  365,  225,  595], # bottom left vertical
+
+    # bottom right
+    [ 805,  455,  1095,  475], # bottom right horizontal left part
+    [ 555,  555,  815,  575], # bottom right horizontal right part
+    [ 805,  465,  825,  645], # bottom right vertical
+
     ])
 
 
@@ -77,7 +81,7 @@ def initialiseGame():
 
     # metadata for placing minion
     gameEngine.minionPlaceFrequency = 10000
-    gameEngine.minionWidth = 40
+    gameEngine.minionWidth = 60
     gameEngine.minionHeight = 40
     gameEngine.minionSpeed = 4
 

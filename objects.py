@@ -15,23 +15,110 @@ class GameStats():
 
 
 
+class DangerBar:
+    def __init__(self, x, y, width, height, color, max_time):
+        """
+        Initialize a danger bar.
+
+        Args:
+            x, y (int): The coordinates of the top-left corner of the bar.
+            width, height (int): The dimensions of the bar.
+            color (tuple): The color of the bar in RGB.
+            max_time (float): The time it takes for the bar to completely fill.
+        """
+        self.outer_rect = pygame.Rect(x, y, width, height)  # The static outer rectangle
+        self.inner_rect = pygame.Rect(x, y, 0, height)  # The growing inner rectangle
+        self.color = color
+        self.max_time = max_time
+        self.start_time = pygame.time.get_ticks()  # Start time
+
+    def update(self):
+        """
+        Update the inner rectangle's width based on the elapsed time.
+        """
+        elapsed_time = (pygame.time.get_ticks() - self.start_time) / 1000  # Time in seconds
+        self.progress = min(elapsed_time / self.max_time, 1)  # Progress ratio (0 to 1)
+        self.inner_rect.width = int(self.outer_rect.width * self.progress)  # Update width
+        
+            
+
+    def draw(self, gameEngine):
+        """
+        Draw the danger bar onto the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the danger bar on.
+        """
+        pygame.draw.rect(gameEngine.screen, (200, 200, 200), self.outer_rect)  # Draw outer rect (border)
+        pygame.draw.rect(gameEngine.screen, self.color, self.inner_rect)  # Draw inner rect (progress)
+
+
 class Minion:
-    def __init__(self,x,y, width, height, speed):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
+    def __init__(self, x, y, width, height, speed,color = (255,255,0),piranhaImage = None, useImg = True):
+        """
+        Initialize a minion.
+
+        Args:
+            x (int): The x-coordinate of the minion's starting position.
+            y (int): The y-coordinate of the minion's starting position.
+            width (int): The width of the minion.
+            height (int): The height of the minion.
+            color (tuple): The color of the minion in RGB.
+            speed (float): The speed at which the minion moves.
+        """
+        self.useImg = True
+        self.rect = pygame.Rect(x, y, width, height)
+        self.color = color
         self.speed = speed
-        self.image = pygame.Surface((width,height))
-        self.image.fill((255,255,0))
-    
-    def moveTowardsCursor(self,gameEngine):
-        angle = math.atan2(gameEngine.cursor.rect.y - self.y, gameEngine.cursor.rect.x - self.x)
-        self.x += self.speed * math.cos(angle)
-        self.y += self.speed * math.sin(angle)
-    
-    def draw(self,gameEngine):
-        gameEngine.screen.blit(self.image, (self.x,self.y))
+        self.image = pygame.transform.scale(piranhaImage, (width, height))
+        self.currentImage = self.image
+        
+        
+    def update(self, gameEngine):
+        """
+        Update the minion's position to move towards the target.
+
+        Args:
+            target_rect (pygame.Rect): The rect of the target to move towards.
+        """
+        # Calculate the direction vector to the target
+        dir_x = gameEngine.cursor.rect.x - self.rect.x
+        dir_y = gameEngine.cursor.rect.y - self.rect.y
+
+        # Normalize the direction
+        distance = math.hypot(dir_x, dir_y)
+        if distance == 0:  # Prevent division by zero
+            dir_x, dir_y = 0, 0
+        else:
+            dir_x, dir_y = dir_x / distance, dir_y / distance
+
+        # Move towards the target
+        self.rect.x += dir_x * self.speed
+        self.rect.y += dir_y * self.speed
+
+        angle = np.rad2deg(math.atan2(dir_y,dir_x))
+        print(angle)
+        flip_horizontally = False
+        flip_vertically = True
+        if -angle > 90 or -angle < -90:
+            flipped_image = pygame.transform.flip(self.image, flip_horizontally, flip_vertically)
+        else:
+            flipped_image = self.image
+
+        self.currentImage =  pygame.transform.rotate(flipped_image, -angle)
+
+    def draw(self, gameEngine):
+        """
+        Draw the minion on the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the minion on.
+        """
+        if self.useImg:
+            gameEngine.screen.blit(self.currentImage, self.rect)
+
+        else:
+            pygame.draw.rect(gameEngine.screen, self.color, self.rect)
         
 import pygame
 
@@ -51,7 +138,7 @@ import math
 import random
 
 class Wall:
-    def __init__(self, gameEngine, top_left, bottom_right, id, color=None):
+    def __init__(self, gameEngine, top_left, bottom_right, id, color=None,visibility = True):
         """
         Initialize a Wall object with oscillation properties.
 
@@ -63,6 +150,7 @@ class Wall:
         @param: oscillation_range (int): Maximum distance the wall moves from the initial position.
         @param: oscillation_speed (float): Speed of oscillation.
         """
+        self.visibility = visibility
         self.move = False
         oscillationTypes = ['vertical','horizontal']
         self.id = id
@@ -105,13 +193,14 @@ class Wall:
         Inputs:
         @param: screen (pygame.Surface): The Pygame surface to draw the wall on.
         """
-        pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+        if self.visibility:
+            pygame.draw.rect(gameEngine.screen, self.color, self.rect)
 
 
 
 
 class Cursor:
-    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True,delaySamples = 0,unstableMode = False):
+    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True,delaySamples = 0,unstableMode = False,controlMethod = 'Mouse'):
         """
         Initialize a velocity-controlled cursor with inertia.
 
@@ -123,6 +212,7 @@ class Cursor:
             color (tuple): The color of the cursor in RGB.
 
         """
+        self.controlMethod = controlMethod
         self.useImg = useImg
         self.rect = pygame.Rect(x, y, width, height)
         self.startingRect = self.rect
@@ -177,8 +267,8 @@ class Cursor:
             if self.rect.right > pygame.display.get_surface().get_width():
                 self.rect.right = pygame.display.get_surface().get_width()
                 self.velocity[0] = 0
-            if self.rect.top < 0:
-                self.rect.top = 0
+            if self.rect.top < 50:
+                self.rect.top = 50
                 self.velocity[1] = 0
             if self.rect.bottom > pygame.display.get_surface().get_height():
                 self.rect.bottom = pygame.display.get_surface().get_height()
@@ -187,36 +277,48 @@ class Cursor:
             
     def selectImageBasedOnDirection(self):
         # change image based on velocity
-        try:
-            velAngle = np.rad2deg(np.arctan(np.abs(self.velocity[1]/self.velocity[0])))
-        except ZeroDivisionError:
-            if self.velocity[1] > 0: 
-                velAngle = 270
-            elif self.velocity[1] < 0:
-                velAngle = 90
-            else:
-                velAngle = 0
-        
+        initialImage =  self.images['right']
+        angle = np.rad2deg(math.atan2(self.velocity[1],self.velocity[0]))
+        print(angle)
+        flip_horizontally = False
+        flip_vertically = True
+        if -angle > 90 or -angle < -90:
+            flipped_image = pygame.transform.flip(initialImage, flip_horizontally, flip_vertically)
+        else:
+            flipped_image = initialImage
+        if angle != 0:
+            self.currentImage =  pygame.transform.rotate(flipped_image, -angle)
+        if False:
+            try:
+                velAngle = np.rad2deg(np.arctan(np.abs(self.velocity[1]/self.velocity[0])))
+            except ZeroDivisionError:
+                if self.velocity[1] > 0: 
+                    velAngle = 270
+                elif self.velocity[1] < 0:
+                    velAngle = 90
+                else:
+                    velAngle = 0
+            
 
-        if self.velocity[0] > 0 and self.velocity[1] < 0:
-            velAngle = velAngle
-        elif self.velocity[0] < 0 and self.velocity[1] < 0:
-            velAngle = 180 - velAngle
-        elif self.velocity[0] < 0 and self.velocity[1] > 0:
-            velAngle = 180 + velAngle
-        elif self.velocity[0] > 0 and self.velocity[1] > 0:
-            velAngle = 360 - velAngle
-        
-        print(velAngle)
+            if self.velocity[0] > 0 and self.velocity[1] < 0:
+                velAngle = velAngle
+            elif self.velocity[0] < 0 and self.velocity[1] < 0:
+                velAngle = 180 - velAngle
+            elif self.velocity[0] < 0 and self.velocity[1] > 0:
+                velAngle = 180 + velAngle
+            elif self.velocity[0] > 0 and self.velocity[1] > 0:
+                velAngle = 360 - velAngle
+            
+            #print(velAngle)
 
-        if  45 < velAngle < 135:
-            self.currentImage = self.images['up']
-        elif 135 < velAngle < 225:
-            self.currentImage = self.images['left']
-        elif 225 < velAngle < 315:
-            self.currentImage = self.images['down']
-        elif velAngle < 45 or velAngle > 315:
-            self.currentImage = self.images['right']
+            if  45 < velAngle < 135:
+                self.currentImage = self.images['up']
+            elif 135 < velAngle < 225:
+                self.currentImage = self.images['left']
+            elif 225 < velAngle < 315:
+                self.currentImage = self.images['down']
+            elif velAngle < 45 or velAngle > 315:
+                self.currentImage = self.images['right']
 
 
     def draw(self, screen):
@@ -232,11 +334,11 @@ class Cursor:
         else:
             pygame.draw.rect(screen, self.color, self.rect)
 
-    def handle_keys(self,controlMethod = 'Mouse'):
+    def handle_keys(self):
         """
         Adjust the cursor's velocity based on key presses.
         """
-        if controlMethod == 'Keypad':
+        if self.controlMethod == 'Keypad':
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT]:
                 self.velocity[0] -= self.acceleration  # Accelerate left
@@ -248,7 +350,7 @@ class Cursor:
             if keys[pygame.K_DOWN]:
                 self.velocity[1] += self.acceleration  # Accelerate down
 
-        elif controlMethod == 'Mouse':
+        elif self.controlMethod == 'Mouse':
             # Get current mouse position
             mouseX, mouseY = pygame.mouse.get_pos()
 
@@ -352,15 +454,33 @@ class GameEngine():
         self.lastMinionPlacedTime = 0
         self.minions = []
 
+    def spawnDangerBar(self):
+        # Create a danger bar at the top of the screen
+        self.dangerBar = DangerBar(50, 10, 700, 20, (255, 0, 0), max_time=30)  # 30 seconds to fill
+    
+    def updateDangerBar(self):
+        self.dangerBar.update()
+    
+    def drawDangerBar(self):
+        self.dangerBar.draw(self)
+    
     def checkSpawnMinion(self):
         if pygame.time.get_ticks() -  self.lastMinionPlacedTime > self.minionPlaceFrequency:
             # place target every self.targetPlaceFrequency seconds
-            self.minions.append(Minion(300,300,self.minionWidth,self.minionHeight,self.minionSpeed))
+            self.minions.append(Minion(300,300,self.minionWidth,self.minionHeight,self.minionSpeed,piranhaImage=self.piranhaImage))
             self.lastMinionPlacedTime = pygame.time.get_ticks()
     def updateAndDrawMinion(self):
         for minion in self.minions:
-            minion.moveTowardsCursor(self)
+            minion.update(self)
             minion.draw(self)
+
+    def checkIfMinionHitCursor(self):
+        for idx in range(len(self.minions)-1,-1,-1):
+            if self.minions[idx].rect.colliderect(self.cursor.rect):
+                #self.targets[idx].color = self.colours['GREEN']
+                self.gameStatistics.score -= 50
+                del self.minions[idx]
+
 
     def checkPlaceTarget(self):
         if pygame.time.get_ticks() -  self.lastTargetPlacedTime > self.targetPlaceFrequency:
@@ -392,6 +512,7 @@ class GameEngine():
 
     def createMaze(self):
         self.maze = Maze(self.mazeDims,self)
+        self.maze.wallList.append(Wall(self,(0,0),(1270,50),id = -1,visibility = False))
     def drawMaze(self):
         for wall in self.maze.wallList:
             wall.update()

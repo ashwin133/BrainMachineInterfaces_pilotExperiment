@@ -39,7 +39,7 @@ def startupGame(gameEngine):
 
         # Render the text representing the variable
         gameEngine.text = gameEngine.font.render(f'Score: {gameEngine.gameStatistics.score}', True, gameEngine.colours['WHITE'])  # Create a text surface
-        gameEngine.text_rect = gameEngine.text.get_rect(center=(gameEngine.screen_width *0.9, gameEngine.screen_height * 0.1))  # Get the rectangular area of the text
+        gameEngine.text_rect = gameEngine.text.get_rect(center=(gameEngine.screen_width *0.95, 30))  # Get the rectangular area of the text
 
         # Blit the text onto the screen
         gameEngine.screen.blit(gameEngine.text, gameEngine.text_rect)
@@ -52,16 +52,23 @@ def startupGame(gameEngine):
         gameEngine.cursor.update()       # Update cursor position
         gameEngine.cursor.draw(gameEngine.screen)   # Draw cursor
 
+        # check if any minions hit the cursor
+        gameEngine.checkIfMinionHitCursor()
+
         # update and draw minion
         gameEngine.updateAndDrawMinion()
 
         # draw all targets
         gameEngine.drawTargets()
+        
+        # Update danger bar
+        gameEngine.updateDangerBar()
+        
+        # Draw danger bar
+        gameEngine.drawDangerBar()
 
         # Update the display
         pygame.display.flip()
-        
-        
 
         
         gameEngine.clock.tick(gameEngine.fps)
