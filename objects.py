@@ -13,10 +13,31 @@ class GameStats():
     def __init__(self):
         pass
 
+class BlinkingSkull:
+    def __init__(self, x, y,width,height, gameEngine):
+        self.image = gameEngine.piranhaImage
+        self.image = pygame.transform.scale(self.image, (width,height))
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.visible = True
+        self.blink = False
+        self.period = 500
+        self.reverseBlinkTime = 0 
+
+    def update(self):
+        if self.blink:
+            if self.reverseBlinkTime < pygame.time.get_ticks():
+                self.visible = not self.visible  # Toggle visibility
+                self.reverseBlinkTime = pygame.time.get_ticks() + self.period
+        else:
+            self.visible = False
+
+    def draw(self, gameEngine):
+        if self.visible:
+            gameEngine.screen.blit(self.image, self.rect)
 
 
 class DangerBar:
-    def __init__(self, x, y, width, height, color, max_time):
+    def __init__(self, x, y, width, height, color, max_time,gameEngine):
         """
         Initialize a danger bar.
 
@@ -31,6 +52,8 @@ class DangerBar:
         self.color = color
         self.max_time = max_time
         self.start_time = pygame.time.get_ticks()  # Start time
+        self.progress = 0
+
 
     def update(self):
         """
@@ -53,8 +76,9 @@ class DangerBar:
         pygame.draw.rect(gameEngine.screen, self.color, self.inner_rect)  # Draw inner rect (progress)
 
 
+
 class Minion:
-    def __init__(self, x, y, width, height, speed,color = (255,255,0),piranhaImage = None, useImg = True):
+    def __init__(self, x, y, width, height, speed,color = (255,255,0),piranhaImage = None, useImg = True,stopTime = 20000):
         """
         Initialize a minion.
 
@@ -72,7 +96,7 @@ class Minion:
         self.speed = speed
         self.image = pygame.transform.scale(piranhaImage, (width, height))
         self.currentImage = self.image
-        
+        self.stopTime = pygame.time.get_ticks() + stopTime
         
     def update(self, gameEngine):
         """
@@ -169,6 +193,32 @@ class Wall:
         self.rect = pygame.Rect(top_left, (self.width, self.height))
         # Set default color
         self.color = color if color else gameEngine.colours['BLACK']
+        self.surface = pygame.Surface((self.rect.width, self.rect.height))  
+        self.surface.fill(self.color) 
+
+        brick_color = (153, 31, 35)  # Dark red/brown for bricks
+        mortar_color = (115, 23, 25)  # Darker color for mortar lines
+
+        self.surface = pygame.Surface((self.width, self.height))
+        self.surface.fill(brick_color)
+
+        brick_height = 12
+        brick_width = 40
+
+        # Draw horizontal mortar lines
+        for y in range(0, self.height, brick_height):
+            pygame.draw.line(self.surface, mortar_color, (0, y), (self.width, y))
+
+        # Draw vertical mortar lines
+        for y in range(0, self.height, brick_height):
+            for x in range(0, self.width, brick_width):
+                if y % (2 * brick_height) == 0:  # Offset every other row
+                    offset_x = brick_width // 2
+                else:
+                    offset_x = 0
+                pygame.draw.line(self.surface, mortar_color, (x + offset_x, y), (x + offset_x, y + brick_height))
+
+
 
     def update(self):
         """
@@ -194,7 +244,8 @@ class Wall:
         @param: screen (pygame.Surface): The Pygame surface to draw the wall on.
         """
         if self.visibility:
-            pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+            #pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+            gameEngine.screen.blit(self.surface, self.rect)
 
 
 
@@ -380,7 +431,22 @@ class Cursor:
         for wall in gameEngine.maze.wallList:
             gameEngine.debugger.dispMsg(5,'Specific wall did not hit cursor',frequency = 100)
             gameEngine.debugger.disp(5,'cursor rect',self.rect,'wall rect',wall.rect,frequency = 100)
-            if pygame.Rect.colliderect(self.rect,wall.rect):
+
+            if self.useImg:
+                cursor_mask = pygame.mask.from_surface(self.currentImage)
+                target_mask = pygame.mask.from_surface(wall.surface) # change to target image 
+
+                offset = (wall.rect.x - self.rect.x, wall.rect.y - self.rect.y)
+                if cursor_mask.overlap(target_mask, offset):
+                    # collision detected
+                    gameEngine.debugger.dispMsg(5,'Collision Detected')
+                    self.is_frozen = True
+                    self.last_hit_time = pygame.time.get_ticks()
+                    self.color = self.frozenCursorColour
+                    gameEngine.gameStatistics.score -= 50
+                    break
+
+            elif pygame.Rect.colliderect(self.rect,wall.rect):
                     gameEngine.debugger.dispMsg(5,'Collision Detected')
                     self.is_frozen = True
                     self.last_hit_time = pygame.time.get_ticks()
@@ -397,7 +463,7 @@ class Cursor:
 
 
 class Target:
-    def __init__(self, width, height, color,gameEngine):
+    def __init__(self, width, height, color,gameEngine,useImg = False, image = None):
         """
         Initialize a target with width, height, and color.
 
@@ -411,6 +477,13 @@ class Target:
         self.color = color
         self.rect = pygame.Rect(0, 0, width, height)  # initialise it
         self.place_randomly(gameEngine)
+        self.useImg = useImg
+        if self.useImg:
+            self.currentImage = pygame.transform.scale(image,(width,height))
+
+        #self.rect = self.image.get_rect(topleft=(x, y))
+
+
 
     def draw(self, gameEngine):
         """
@@ -419,7 +492,10 @@ class Target:
         Args:
             screen (pygame.Surface): The surface to draw the target on.
         """
-        pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+        if self.useImg:
+            gameEngine.screen.blit(self.currentImage, self.rect)
+        else:
+            pygame.draw.rect(gameEngine.screen, self.color, self.rect)
 
     def place_randomly(self,gameEngine):
         """
@@ -441,6 +517,84 @@ class Target:
             if not any(wall.rect.colliderect(self.rect) for wall in gameEngine.maze.wallList):
                 placed = True
 
+class Dangerzone():
+
+    def __init__(self,x,y,width,height,gameEngine):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.activeImage = gameEngine.skullImage
+        self.activeImage = pygame.transform.scale(self.activeImage, (width, height))
+        self.active = False
+    
+    def draw(self,gameEngine):
+        """
+        Draw the target onto the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the target on.
+        """
+        if self.active:
+            gameEngine.screen.blit(self.activeImage, self.rect)
+        else:
+            pass
+            #pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+
+
+class EnergyZone():
+
+    def __init__(self,x,y,width,height,gameEngine):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.activeColor = (0,128,0)
+        self.chargingColor = (255,165,0)
+        self.disabledColor = (255,0,0)
+        self.active = False
+        self.color = self.activeColor
+        self.charge = 100
+        self.minionSpawn = False
+        self.width = width
+        self.height = height
+    
+    def update(self,gameEngine):
+            if self.minionSpawn == False:
+                if self.rect.colliderect(gameEngine.cursor.rect):
+                    if self.charge != 0:
+                        self.charge -= 1
+                        self.color = self.chargingColor
+                        return 1
+                    elif self.charge == 0:
+                        self.color = self.disabledColor
+                else:
+                    if self.charge == 0:
+                        self.color = self.disabledColor
+                    else:
+                        self.color = self.activeColor
+            else:
+                if self.minionSpawn:
+                    # when minions have spawned we want to charge energy zones
+                     # if coliision and energy zone uncharged then charge it
+                    if self.rect.colliderect(gameEngine.cursor.rect):
+                        if self.charge != 100:
+                            self.charge += 1
+                            self.color = self.chargingColor
+                        elif self.charge == 100:
+                            self.color = self.activeColor
+                    else:
+                        if self.charge == 100:
+                            self.color = self.activeColor
+                        else:
+                            self.color = self.disabledColor
+
+
+
+    def draw(self,gameEngine):
+        """
+        Draw the target onto the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the target on.
+        """
+
+        pygame.draw.rect(gameEngine.screen, self.color, self.rect)
+
 
 class GameEngine():
     """
@@ -453,39 +607,147 @@ class GameEngine():
         self.targets = []
         self.lastMinionPlacedTime = 0
         self.minions = []
+        self.placeMinionTime = None
+        self.energyZones = []
 
-    def spawnDangerBar(self):
+    def spawnEnergyZones(self):
+        # spawn an energy zone in 
+        # Bottom Right Energy Zone
+        self.energyZones.append(EnergyZone(1245-100,715-100,100,100,self))
+        
+        
+        # Top Right Energy Zone
+        self.energyZones.append(EnergyZone(1245-100,75,100,100,self))
+
+        # Top Left Enery Zone
+        self.energyZones.append(EnergyZone(25,75,100,100,self))
+
+    def updateEnergyZones(self):
+        for energyZone in self.energyZones:
+            energy = energyZone.update(self)
+            if energy == 1:
+                print('flag')
+                #self.dangerBar.progress -= 0.02
+                self.dangerBar.start_time += 67
+                if self.dangerBar.progress < 0:
+                    self.dangerBar.progress == 0
+    
+    def drawEnergyZones(self):
+        for energyZone in self.energyZones:
+            energyZone.draw(self)
+
+    def spawnDangerBar(self,time):
         # Create a danger bar at the top of the screen
-        self.dangerBar = DangerBar(50, 10, 700, 20, (255, 0, 0), max_time=30)  # 30 seconds to fill
+        self.dangerBar = DangerBar(50, 10, 700, 20, (255, 0, 0), time,self)  # 30 seconds to fill
     
     def updateDangerBar(self):
         self.dangerBar.update()
-    
+        if self.dangerBar.progress > 0.99 and self.placeMinionTime is None:
+            self.placeMinionTime = pygame.time.get_ticks() + 3000
+            self.dangerzone.active = True
+            self.piranhaOnSign.activate()
+            self.activateEnergyZones()
+        
+        if self.dangerzone.active == True:
+            # Check if all energy zones are charged if danger zone is active
+
+            fullyCharged = True
+            for energyZone in self.energyZones:
+                if energyZone.charge != 100:
+                    fullyCharged = False
+
+            if fullyCharged:  # minion off
+                self.placeMinionTime = None
+                self.dangerzone.active = False
+
+                self.dangerBar.start_time = pygame.time.get_ticks()
+                for energyZone in self.energyZones:
+                    energyZone.charge = 100
+                    energyZone.minionSpawn = False
+                
+                self.piranhaOffSign.activate()
+                # add code
+
+
+    def activateEnergyZones(self):
+        """
+        triggers when minions start to spawn
+        """
+        for energyZone in self.energyZones:
+            energyZone.minionSpawn = True
+            energyZone.charge = 0
+
+    def draw_sea(self):
+        colors = [(30, 135, 168), (15, 120, 158),(0, 105, 148) ]
+        section_height = self.screen_height // len(colors)
+        for i, color in enumerate(colors):
+            pygame.draw.rect(self.screen, color, (0, i * section_height, self.screen_width, section_height + 1))
+    def draw_waves(self):
+        time = pygame.time.get_ticks()
+        wave_color = (255, 255, 255, 100)
+        for i in range(0, self.screen_width, 20):
+            wave_y = self.screen_height * 0.8 + 10 * np.sin(i * 0.05 + time * 0.002)  # Sinusoidal wave pattern
+            pygame.draw.arc(self.screen, wave_color, (i, wave_y, 80, 50), np.pi, 2 * np.pi, 3)
+
     def drawDangerBar(self):
         self.dangerBar.draw(self)
     
-    def checkSpawnMinion(self):
-        if pygame.time.get_ticks() -  self.lastMinionPlacedTime > self.minionPlaceFrequency:
-            # place target every self.targetPlaceFrequency seconds
-            self.minions.append(Minion(300,300,self.minionWidth,self.minionHeight,self.minionSpeed,piranhaImage=self.piranhaImage))
-            self.lastMinionPlacedTime = pygame.time.get_ticks()
+    def spawnDangerZone(self,x,y,width,height):
+        self.dangerzone = Dangerzone(x,y,width,height,self)
+    
+    def drawDangerZone(self):
+        self.dangerzone.draw(self)
+
+    def checkSpawnMinion(self,placeFromZone = True):
+        # when self.placeMinionTime is not None
+        if placeFromZone:
+            if self.placeMinionTime is not None and  pygame.time.get_ticks()  > self.placeMinionTime:
+                # place target every self.targetPlaceFrequency seconds
+                self.minions.append(Minion(25,665,self.minionWidth,self.minionHeight,self.minionSpeed,piranhaImage=self.piranhaImage))
+                self.lastMinionPlacedTime = pygame.time.get_ticks()
+                self.placeMinionTime = pygame.time.get_ticks() + self.minionPlaceFrequency
+        else:
+            if pygame.time.get_ticks() -  self.lastMinionPlacedTime > self.minionPlaceFrequency:
+                # place target every self.targetPlaceFrequency seconds
+                self.minions.append(Minion(300,300,self.minionWidth,self.minionHeight,self.minionSpeed,piranhaImage=self.piranhaImage))
+                self.lastMinionPlacedTime = pygame.time.get_ticks()
+
+    def updateAndDrawBlinkingSkull(self):
+        self.blinkingSkull.blink = self.dangerzone.active
+        self.blinkingSkull.update()
+        self.blinkingSkull.draw(self)
+
     def updateAndDrawMinion(self):
-        for minion in self.minions:
+        for idx,minion in enumerate(self.minions):
             minion.update(self)
             minion.draw(self)
+            if pygame.time.get_ticks() > minion.stopTime:
+                del self.minions[idx]
+
 
     def checkIfMinionHitCursor(self):
         for idx in range(len(self.minions)-1,-1,-1):
-            if self.minions[idx].rect.colliderect(self.cursor.rect):
+
+            if self.cursor.useImg:
+                cursor_mask = pygame.mask.from_surface(self.cursor.currentImage)
+                minion_mask = pygame.mask.from_surface(self.minions[idx].currentImage)
+
+                offset = (self.minions[idx].rect.x - self.cursor.rect.x, self.minions[idx].rect.y - self.cursor.rect.y)
+                if cursor_mask.overlap(minion_mask, offset):
+                    # collision detected
+                    self.gameStatistics.score -= 50
+                    del self.minions[idx]
+
+            elif self.minions[idx].rect.colliderect(self.cursor.rect):
                 #self.targets[idx].color = self.colours['GREEN']
                 self.gameStatistics.score -= 50
                 del self.minions[idx]
 
 
     def checkPlaceTarget(self):
-        if pygame.time.get_ticks() -  self.lastTargetPlacedTime > self.targetPlaceFrequency:
+        if pygame.time.get_ticks() -  self.lastTargetPlacedTime > self.targetPlaceFrequency and len(self.targets) < self.maxTargets:
             # place target every self.targetPlaceFrequency seconds
-            self.targets.append(Target(self.targetWidth,self.targetHeight,self.colours['RED'],self))
+            self.targets.append(Target(self.targetWidth,self.targetHeight,self.colours['RED'],self,useImg=True,image=self.targetImage))
             self.lastTargetPlacedTime = pygame.time.get_ticks()
     
     def drawTargets(self):
@@ -494,7 +756,16 @@ class GameEngine():
     
     def checkIfCursorHitTarget(self):
         for idx,target in enumerate(self.targets):
-            if target.rect.colliderect(self.cursor.rect):
+            if self.cursor.useImg:
+                cursor_mask = pygame.mask.from_surface(self.cursor.currentImage)
+                target_mask = pygame.mask.from_surface(target.currentImage) # change to target image 
+
+                offset = (target.rect.x - self.cursor.rect.x, target.rect.y - self.cursor.rect.y)
+                if cursor_mask.overlap(target_mask, offset):
+                    # collision detected
+                    self.gameStatistics.score += 25
+                    del self.targets[idx]
+            elif target.rect.colliderect(self.cursor.rect):
                 #self.targets[idx].color = self.colours['GREEN']
                 self.gameStatistics.score += 25
                 del self.targets[idx]
@@ -580,3 +851,55 @@ class Debugger():
                     'Target Box Appear Times' : targetBoxAppearTimes, 'Rigid Body Vectors Datastore': allBodyPartsData,
                     'Box Size': boxSizeVarName, 'Metadata': metadata,' Pointer Location' : pointerLocs, 'GameEngine Metadata': gameEngine}
 
+
+
+
+
+class PiranhaNestDestroyedSign:
+    def __init__(self, gameEngine, font, message="Piranha Nest Destroyed"):
+        self.screen = gameEngine.screen
+        self.font = font
+        self.message = message
+        self.visible = False
+        self.display_time = 2000  # 2000 milliseconds or 2 seconds
+        self.start_time = None
+
+    def activate(self):
+        self.visible = True
+        self.start_time = pygame.time.get_ticks()
+
+    def update_and_draw(self):
+        if self.visible:
+            # Check if 2 seconds have passed
+            if pygame.time.get_ticks() - self.start_time > self.display_time:
+                self.visible = False
+
+            if self.visible:
+                text_surface = self.font.render(self.message, True, (255, 255, 255))
+                text_rect = text_surface.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2))
+                self.screen.blit(text_surface, text_rect)
+
+
+class PiranhaNestSpawnedSign:
+    def __init__(self, gameEngine, font, message="Piranha Nest Spawned"):
+        self.screen = gameEngine.screen
+        self.font = font
+        self.message = message
+        self.visible = False
+        self.display_time = 2000  # 2000 milliseconds or 2 seconds
+        self.start_time = None
+
+    def activate(self):
+        self.visible = True
+        self.start_time = pygame.time.get_ticks()
+
+    def update_and_draw(self):
+        if self.visible:
+            # Check if 2 seconds have passed
+            if pygame.time.get_ticks() - self.start_time > self.display_time:
+                self.visible = False
+
+            if self.visible:
+                text_surface = self.font.render(self.message, True, (255, 255, 255))
+                text_rect = text_surface.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2))
+                self.screen.blit(text_surface, text_rect)

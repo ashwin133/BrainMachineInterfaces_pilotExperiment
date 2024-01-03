@@ -35,7 +35,9 @@ def startupGame(gameEngine):
         gameEngine.checkSpawnMinion()
 
         # Fill the screen with blue
-        gameEngine.screen.fill(gameEngine.colours['BLUE'])
+        #gameEngine.screen.fill(gameEngine.colours['BLUE'])
+        gameEngine.draw_sea()
+        #gameEngine.draw_waves()
 
         # Render the text representing the variable
         gameEngine.text = gameEngine.font.render(f'Score: {gameEngine.gameStatistics.score}', True, gameEngine.colours['WHITE'])  # Create a text surface
@@ -46,6 +48,13 @@ def startupGame(gameEngine):
 
         # draw the maze
         gameEngine.drawMaze()
+
+        # update energy zone
+        gameEngine.updateEnergyZones()
+
+
+        # draw game zones
+        gameEngine.drawEnergyZones()
 
         # draw the right cursor
         gameEngine.cursor.handle_keys()  # Adjust cursor velocity based on keys pressed
@@ -61,11 +70,21 @@ def startupGame(gameEngine):
         # draw all targets
         gameEngine.drawTargets()
         
+        # update and draw blinking skull if needed
+        gameEngine.updateAndDrawBlinkingSkull()
         # Update danger bar
         gameEngine.updateDangerBar()
-        
+
         # Draw danger bar
         gameEngine.drawDangerBar()
+        
+        # draw danger zone if necessary
+        gameEngine.drawDangerZone()
+
+        # draw piranha off and on sign if necessary
+        gameEngine.piranhaOffSign.update_and_draw()
+        gameEngine.piranhaOnSign.update_and_draw()
+        
 
         # Update the display
         pygame.display.flip()

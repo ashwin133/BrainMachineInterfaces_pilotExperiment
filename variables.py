@@ -21,7 +21,7 @@ def initialiseGame():
     [1245,    50, 1265,  735],  # Right border with gap 
 
     # top left
-    [ 125,  165,  295,  185],  # top left horizontal
+    [ 200,  200,  345,  220],  # top left horizontal
 
     # top right
     [ 805,  255,  1075,  275], # top right horizontal
@@ -34,7 +34,7 @@ def initialiseGame():
     # bottom right
     [ 805,  455,  1095,  475], # bottom right horizontal left part
     [ 555,  555,  815,  575], # bottom right horizontal right part
-    [ 805,  465,  825,  645], # bottom right vertical
+    [ 805,  465,  825,  600], # bottom right vertical
 
     ])
 
@@ -72,7 +72,7 @@ def initialiseGame():
     gameEngine.fps = 30
 
     # metadata for placing target
-    gameEngine.targetPlaceFrequency = 5000
+    gameEngine.targetPlaceFrequency = 3000
     gameEngine.targetWidth = 40
     gameEngine.targetHeight = 40
 
@@ -84,6 +84,10 @@ def initialiseGame():
     gameEngine.minionWidth = 60
     gameEngine.minionHeight = 40
     gameEngine.minionSpeed = 4
+
+    # max targets
+    gameEngine.maxTargets = 5
+
 
     return gameEngine 
 
