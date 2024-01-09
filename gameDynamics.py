@@ -21,7 +21,9 @@ def startupGame(gameEngine):
     while gameEngine.running:
 
         
-        
+        # fetch body tracking data if needed
+        if gameEngine.config.userInputMethod == "bodyTracking":
+            gameEngine.fetchSharedMemoryData()
 
         gameEngine.gatherKeyPresses()
 

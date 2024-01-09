@@ -6,6 +6,8 @@ from variables import initialiseGame
 from setup import runGameSetup
 from gameDynamics import startupGame
 
+import multiprocessing
+
 # initialise the game engine to pass configuration of game
 gameEngine = initialiseGame()
 

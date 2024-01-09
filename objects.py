@@ -5,6 +5,9 @@ import pygame
 import numpy as np
 import queue
 import math
+from multiprocessing import shared_memory
+import time
+from config_streaming import rigidBodyParts
 
 class GameStats():
     """
@@ -12,6 +15,20 @@ class GameStats():
     """
     def __init__(self):
         pass
+
+class Config():
+    """
+    Holds information about configuration of game chosen
+    """
+    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated):
+        self.useSimulatedData = useSimulatedData
+        self.userInputMethod = userInputMethod
+        self.saveGameData = saveGameData
+        self.saveGameDataPath = saveGameDataPath
+        self.inputBodyPart = inputBodyPart
+        self.calibrated = calibrated
+
+
 
 class BlinkingSkull:
     def __init__(self, x, y,width,height, gameEngine):
@@ -51,7 +68,7 @@ class DangerBar:
         self.inner_rect = pygame.Rect(x, y, 0, height)  # The growing inner rectangle
         self.color = color
         self.max_time = max_time
-        self.start_time = pygame.time.get_ticks()  # Start time
+        self.start_time = pygame.time.get_ticks()   # Start time
         self.progress = 0
 
 
@@ -121,7 +138,7 @@ class Minion:
         self.rect.y += dir_y * self.speed
 
         angle = np.rad2deg(math.atan2(dir_y,dir_x))
-        print(angle)
+        #print(angle)
         flip_horizontally = False
         flip_vertically = True
         if -angle > 90 or -angle < -90:
@@ -251,7 +268,7 @@ class Wall:
 
 
 class Cursor:
-    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True,delaySamples = 0,unstableMode = False,controlMethod = 'Mouse'):
+    def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True,delaySamples = 0,unstableMode = False,controlMethod = 'Mouse',gameEngine = None):
         """
         Initialize a velocity-controlled cursor with inertia.
 
@@ -274,7 +291,7 @@ class Cursor:
         self.acceleration = 2    # Acceleration rate
         self.friction = 0.92      # Friction coefficient
         self.is_frozen = False
-        self.cooldown = 2000 # cooldown time when frozen from hitting wall in ms 
+        self.cooldown = 1000 # cooldown time when frozen from hitting wall in ms 
         self.last_hit_time = None # store time of hit
         self.resetLatch = 0
         # Scale the image
@@ -291,7 +308,17 @@ class Cursor:
                 self.velocity_queue = queue.Queue(maxsize=delaySamples)
                 for _ in range(delaySamples):
                     self.velocity_queue.put([0,0])
-                print(self.velocity_queue)
+                #print(self.velocity_queue)
+
+        self.xRange = gameEngine.xRange
+        self.yRange = gameEngine.yRange
+        self.debugger = gameEngine.debugger
+        self.usePCA = gameEngine.performCalibrationUsingPrincipleComponent
+        if self.usePCA:
+            self.leftRightPCA = gameEngine.pcaleftRight
+            self.upDownPCA = gameEngine.pcaUpDown
+            self.xInvert = gameEngine.xInvert
+            self.yInvert = gameEngine.yInvert
                 
 
     def update(self):
@@ -330,7 +357,7 @@ class Cursor:
         # change image based on velocity
         initialImage =  self.images['right']
         angle = np.rad2deg(math.atan2(self.velocity[1],self.velocity[0]))
-        print(angle)
+        #print(angle)
         flip_horizontally = False
         flip_vertically = True
         if -angle > 90 or -angle < -90:
@@ -425,6 +452,48 @@ class Cursor:
             else:
                 self.velocity[0] += distanceX * 0.02
                 self.velocity[1] += distanceY * 0.02
+
+        elif self.controlMethod == "bodyTracking":
+                bodyController = "VelocityBased"
+
+                if bodyController == "PositionBased":
+
+                    if self.usePCA:
+                        
+                        normalised_x_val = 1 -  (self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                        normalised_y_Val =  (self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                    else:
+                        normalised_x_val = 1 -  (self.controlPos[1] - self.userMinXValue) / self.xRange
+                        normalised_y_Val = 1 - (self.controlPos[2] - self.userMinYValue) / self.yRange
+                    #print(normalised_x_val)
+                    #print(normalised_y_Val)
+                    self.rect.x = normalised_x_val * pygame.display.get_surface().get_width()
+                    self.rect.y = normalised_y_Val * pygame.display.get_surface().get_height()
+                
+                elif bodyController == "VelocityBased":
+                    if self.usePCA:
+                        if self.xInvert:
+                            normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                        else:
+                            normalised_x_val =   (self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                        if self.yInvert:
+                            normalised_y_Val = ( self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                        else:  
+                            normalised_y_Val = 1 - (self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                    else:
+                        normalised_x_val = 1 -  (self.controlPos[1] - self.userMinXValue) / self.xRange
+                        normalised_y_Val = 1 - (self.controlPos[2] - self.userMinYValue) / self.yRange
+                    
+                    x_target = normalised_x_val * pygame.display.get_surface().get_width() 
+                    y_target = normalised_y_Val * pygame.display.get_surface().get_height()
+                    self.debugger.disp(2,x_target,y_target)
+                    distanceX = x_target - self.rect.centerx
+                    distanceY = y_target - self.rect.centery
+                    self.velocity[0] = distanceX * 0.06
+                    self.velocity[1] = distanceY * 0.06
+
+                
+
     
     def checkIfCursorHitWall(self,gameEngine):
         gameEngine.debugger.dispMsg(5,'Entered  cursor hit wall check',frequency = 100)
@@ -609,6 +678,345 @@ class GameEngine():
         self.minions = []
         self.placeMinionTime = None
         self.energyZones = []
+        
+
+    # functions to handle optitrack inputs
+        
+    def initSharedMemory(self,sharedMemoryName,noDataTypes,noBodyParts):
+        """
+        Function initialises parameters of the shared memory for use later. This function should only 
+        be called when shared memory is needed.
+
+        @param: sharedMemoryName: Name of the shared memory which should match the shared memory dumping data
+        @param: noDataTypes: Number of dimensions for each body part (DOF), typically 6
+        @param: noBodyParts: Number of body parts, typically 51
+        """
+        # shared memory either needs to be simulated or actually used
+        if self.config.userInputMethod  == "bodyTracking":
+            if self.config.useSimulatedData is not True:
+                self.debugger.disp(3,'Shared memory is initialised for live motion capture', '')
+                self.sharedMemName = sharedMemoryName
+                self.sharedMemShape = (noBodyParts,noDataTypes)
+                self.sharedMemSize =  noDataTypes * noBodyParts
+            elif self.config.useSimulatedData is True:
+
+                self.debugger.disp(3,'Shared memory is being simulated for motion capture', '')
+                # initialise key parameters
+                self.sharedMemName = sharedMemoryName
+                self.sharedMemShape = (noBodyParts,noDataTypes)
+                self.sharedMemSize =  noDataTypes * noBodyParts
+
+                # create the shared memory simulating the action of the data retrieval script 
+                shared_block = shared_memory.SharedMemory(size= self.sharedMemSize * 8, name=self.sharedMemName, create=True)
+                shared_array = np.ndarray(shape=self.sharedMemShape, dtype=np.float64, buffer=shared_block.buf)
+        else:
+            # nothing happens as shared memory is not needed as input is not body tracking
+            self.debugger.disp(3,'Shared memory not being used as control method is not bodyTracking', '')
+
+
+    def enterCalibrationStage(self):
+        """
+        Enter calibration stage for rigid body tracking only
+        """
+
+        # TODO: change print statements to debugger.disp 
+        self.calibrationTimeEnd = self.timeBeforeCalibration + self.calibrationTime
+        # warn user for calibration
+
+        print('Before we start, the calibration stage must be undertaken')
+        print('Face upright and standing towards the computer and keep your chosen body point straight and pointed forwards')
+        print('Calibration will start in 5')
+        time.sleep(1)
+        print('4')
+        time.sleep(1)
+        print('3')
+        time.sleep(1)
+        print('2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating - point your chosen body part forwards and keep it straight')
+
+        self.controlBodyPartIdx = rigidBodyParts.index(self.config.inputBodyPart)
+        self.debugger.disp(3,"Control is set using".format(self.controlBodyPartIdx))
+        
+        # Either calibrate using real time data or simulate it if using recorded data
+
+        if self.config.useSimulatedData is not True:
+            # Real time data recording
+
+            # retrieve latest information from shared memory
+            shared_block = shared_memory.SharedMemory(size= self.sharedMemSize * 8, name=self.sharedMemName, create=False)
+            shared_array = np.ndarray(shape=self.sharedMemShape, dtype=np.float64, buffer=shared_block.buf)
+            controlRigidBodyInitialData = np.array(shared_array[self.controlBodyPartIdx,:]) # idx of rigid body controlling
+
+            
+            # SAVE DATA IF REQUESTED
+            if self.config.saveGameData == True:
+                # Write the information of the control rigid body to the relevant datastore
+                self.controlRigidBodyDatastore[self.controlRigidBodyDatastoreIteration,:] = controlRigidBodyInitialData[:6]
+                self.controlRigidBodyDatastoreIteration += 1
+
+                # Write all rigid body part information to the relavent datastore
+                self.allBodyPartsDatastore[self.allBodyPartsDataStoreIteration,:,:] =  np.array(shared_array[:,0:6])
+                self.allBodyPartsDataStoreIteration += 1
+
+
+        elif self.config.useSimulatedData: # USING SIMULATED DATA
+
+            # read data from datastore and increment index
+            controlRigidBodyInitialData = self.controlBodyPartreadDataStore[self.controlBodyPartreadDataStoreIteration] 
+            self.controlBodyPartreadDataStoreIteration += 1
+
+            # TODO: add workflow to save read data if needed at a later stage
+
+        
+        # Now calibrate using rigid body control data
+    
+        calibrationFromVector = controlRigidBodyInitialData[3:6]
+        calibrationToVector = np.array([1,0,0]) # TODO: needs to be changed for other rigid body parts?
+        self.calcCalibrationConstants(calibrationToVector,calibrationFromVector)
+        self.calibratedXValue, self.calibratedYValue =  np.matmul(self.calibrationMatrix,np.array(controlRigidBodyInitialData[0:3]))[1:3]
+
+        print('Correct plane has been calibrated')
+        print('The program will now calibrate the x and y range')
+        print('Please move your right arm wherever possible')
+        print('The program will form this new range based on your motion in the next 7 seconds')
+
+        # initialise the control range to no range and update later based on the users range of movements
+        self.userMaxXValue = -10000
+        self.userMinXValue = 10000
+        self.userMaxYValue = -10000
+        self.userMinYValue = 10000
+
+    def performCalibrationStage(self):
+        self.performCalibrationUsingPrincipleComponent = True
+
+        if self.performCalibrationUsingPrincipleComponent is not True:
+            # DEFAULT
+            while pygame.time.get_ticks() < self.calibrationTimeEnd:
+                self.fetchSharedMemoryData()
+                # TODO: may need to adjust these for different rigid bodies
+                # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+                self.userMaxXValue = max(self.controlPos[1],self.userMaxXValue)
+                self.userMaxYValue = max(self.controlPos[2],self.userMaxYValue)
+                self.userMinXValue = min(self.controlPos[1],self.userMinXValue)
+                self.userMinYValue = min(self.controlPos[2],self.userMinYValue)
+                print('executed')
+                time.sleep(1/120)
+        elif self.performCalibrationUsingPrincipleComponent is True:
+            self.calibrateControlUsingPCA()
+            
+ 
+        # End calibration stage
+        self.debugger.disp(2,'Calibration stage is now over')
+        # TODO: add code to make calibration even with respect to far distance to middle?
+
+        # set range of control input based on user's movement range
+        self.xRange = self.userMaxXValue - self.userMinXValue
+
+        
+        self.yRange = self.userMaxYValue - self.userMinYValue
+
+        self.config.calibrated = True
+     
+    
+    def calibrateControlUsingPCA(self):
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.decomposition import PCA
+        # first calibrate right and left
+        self.calibrationPos_rl = []
+        self.calibrationDir_rl = []
+
+        # Warn user
+        print('First we will calibrate the right-left plane')
+        print('Move your controller right and left only for three seconds')
+        print('The principle component in this direction will be used as the control mapping')
+        print('Calibration will start in 2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating the left right axis')
+        currTime = pygame.time.get_ticks()
+
+        # collect data for left and right for 3.5 s
+        while pygame.time.get_ticks() <currTime + 3500:
+            self.fetchSharedMemoryData()
+            # TODO: may need to adjust these for different rigid bodies
+            # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+            self.userMaxXValue = max(self.controlPos[1],self.userMaxXValue)
+            self.userMinXValue = min(self.controlPos[1],self.userMinXValue)
+            self.calibrationPos_rl.append(self.controlPos)
+            self.calibrationDir_rl.append(self.controlDir)
+            print(self.userMinXValue,self.userMaxXValue)
+            time.sleep(1/120)
+        
+        # apply pca
+        
+        self.calibrationPos_rl = np.asarray(self.calibrationPos_rl)
+        #X_std = StandardScaler().fit_transform(self.calibrationPos_rl)
+        pca = PCA(n_components=1)
+        x_pca = pca.fit_transform(self.calibrationPos_rl)
+        self.userMinXValue = min(x_pca)
+        self.userMaxXValue = max(x_pca)
+        print(pca.explained_variance_ratio_)
+        self.xRange = self.userMaxXValue - self.userMinXValue
+        self.pcaleftRight = pca
+
+        print("To assess the direction, please place your controller to the left")
+        print('Calibration will start in 2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating...')
+        self.fetchSharedMemoryData()
+        normalised_x_Val_min =  (self.pcaleftRight.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+        print('Now move your controller right')
+        print('Calibration will start in 2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating...')
+        self.fetchSharedMemoryData()
+        normalised_x_Val_max =  (self.pcaleftRight.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+        if normalised_x_Val_min > normalised_x_Val_max:
+            self.xInvert = True
+        else:
+            self.xInvert = False
+
+        # --- NEXT CALIBRATE UP AND DOWN ---
+        self.calibrationPos_rl = []
+        self.calibrationDir_rl = []
+
+        # Warn user
+        print('First we will calibrate the up-down plane')
+        print('Move your controller up and down only for three seconds')
+        print('The principle component in this direction will be used as the control mapping')
+        print('Calibration will start in 2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating the up down axis')
+        currTime = pygame.time.get_ticks()
+        self.calibrationPos_rl = []
+        self.calibrationDir_rl = []
+
+        # collect data for up and down for 3.5 s
+        while pygame.time.get_ticks() <currTime + 3500:
+            self.fetchSharedMemoryData()
+            # TODO: may need to adjust these for different rigid bodies
+            # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+            
+            self.calibrationPos_rl.append(self.controlPos)
+            self.calibrationDir_rl.append(self.controlDir)
+            print(self.userMinXValue,self.userMaxXValue)
+            time.sleep(1/120)
+        
+        # apply pca
+        
+        self.calibrationPos_rl = np.asarray(self.calibrationPos_rl)
+        #X_std = StandardScaler().fit_transform(self.calibrationPos_rl)
+        pca = PCA(n_components=1)
+        y_pca = pca.fit_transform(self.calibrationPos_rl)
+        self.userMinYValue = min(y_pca)
+        self.userMaxYValue = max(y_pca)
+        self.yRange = self.userMaxYValue - self.userMinYValue
+        self.pcaUpDown = pca
+
+        
+        print("To assess the direction, please place your hand down")
+        print('Calibration will start in 2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating...')
+        self.fetchSharedMemoryData()
+        normalised_y_Val_min =  (self.pcaUpDown.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+        print('Now move your hand up')
+        print('Calibration will start in 2')
+        time.sleep(1)
+        print('1')
+        time.sleep(1)
+        print('Calibrating...')
+        self.fetchSharedMemoryData()
+        normalised_y_Val_max =  (self.pcaUpDown.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+        if normalised_y_Val_min > normalised_y_Val_max:
+            self.yInvert = True
+        else:
+            self.yInvert = False
+
+
+        print("PCA based calibration has finished" )
+
+
+    def calcCalibrationConstants(self,calibrationToVector, calibrationFromVector):
+        """
+        attempts to calibrate for person standing off x axis by finding the transformation
+        matrix to transform off axis motion to the standard axes
+        returns a transformation matrix that can convert directions and positions 
+        """
+        # calculate thetha from dot product
+        thetha_rad = np.arccos(np.dot(calibrationToVector,calibrationFromVector)/(np.linalg.norm(calibrationToVector) * np.linalg.norm(calibrationFromVector)))
+
+        # calculate Q
+        Q = np.zeros((3,3))
+        Q[0,0] = np.cos(thetha_rad)
+        Q[1,1] = Q[0,0]
+        Q[0,1] = np.sin(thetha_rad)
+        Q[1,0] = - Q[0,1]
+        Q[2,2] = 1
+
+        self.calibrationMatrix = Q.transpose()
+
+    def fetchSharedMemoryData(self):
+
+        """
+        Fetches latest data either in real time from shared memory or from simulated datastores
+        """
+
+        # Data does not need to be saved
+
+        if self.config.useSimulatedData is not True: 
+            shared_block = shared_memory.SharedMemory(size= self.sharedMemSize * 8, name=self.sharedMemName, create=False)
+            shared_array = np.ndarray(shape=self.sharedMemShape, dtype=np.float64, buffer=shared_block.buf)
+            controlBodyData = np.array(shared_array[self.controlBodyPartIdx])
+
+            # Record data if requested
+            if self.config.saveGameData is True: 
+                # Record control body
+                self.controlBodyPartDataStore[self.controlBodyPartDataStoreIteration,:] = controlBodyData[:6]
+                self.controlBodyPartDataStoreIteration += 1
+
+                # Record all rigid bodies
+                self.allBodyPartsDatastore[self.allBodyPartsDataStoreIteration,:,:] =  np.array(shared_array[:,0:6])
+                self.allBodyPartsDataStoreIteration += 1
+
+        # Read control rigid body data from datastore if using simulated data
+        elif self.config.useSimulatedData is True:
+            controlBodyData = self.controlBodyPartreadDataStore[self.controlBodyPartreadDataStoreIteration] 
+            self.controlBodyPartreadDataStoreIteration += 1
+            
+        
+        # Process the data 
+
+        # both workflows have this adjustment
+        self.controlPos = np.matmul(self.calibrationMatrix,controlBodyData[0:3])
+        self.controlDir = np.matmul(self.calibrationMatrix,controlBodyData[3:6])
+        
+        # pass this to the cursor after calibration stage
+        if self.config.calibrated is True:
+            self.cursor.controlPos = self.controlPos
+            self.cursor.controlDir = self.controlDir
+            self.cursor.userMinYValue = self.userMinYValue
+            self.cursor.userMaxYValue = self.userMaxYValue
+            self.cursor.userMinXValue = self.userMinXValue
+            self.cursor.userMaxXValue = self.userMaxXValue
+
+            
+            
+        
+
+
 
     def spawnEnergyZones(self):
         # spawn an energy zone in 

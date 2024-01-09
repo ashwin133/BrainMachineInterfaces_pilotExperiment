@@ -14,7 +14,17 @@ def runGameSetup(gameEngine):
 
     gameEngine.screen = pygame.display.set_mode((gameEngine.screen_width, gameEngine.screen_height))
     # Set the title of the window
-    pygame.display.set_caption('Display Variable Example')
+    pygame.display.set_caption('Fish Game')
+
+    # now perform any configuration based workflows 
+
+    #initialise shared memory if using rigid body tracking
+    
+
+    if gameEngine.config.userInputMethod == "bodyTracking":
+        gameEngine.initSharedMemory('Test Rigid Body', 7,51)
+        gameEngine.enterCalibrationStage()
+        gameEngine.performCalibrationStage()
 
 
 
@@ -40,8 +50,13 @@ def runGameSetup(gameEngine):
     else:
         unstableCursor = False
         delayLength = 0
-    controlMethod = "Mouse"
-    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=60, height=40, color=(255, 255, 255),imagePaths=cursorPaths,delaySamples=delayLength,unstableMode=unstableCursor,controlMethod= controlMethod)
+    
+    if gameEngine.config.userInputMethod == "bodyTracking":
+        controlMethod = "bodyTracking"
+    else:
+        controlMethod = "Keypad"
+    
+    gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=60, height=40, color=(255, 255, 255),imagePaths=cursorPaths,delaySamples=delayLength,unstableMode=unstableCursor,controlMethod= controlMethod,gameEngine = gameEngine)
     
     
 

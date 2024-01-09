@@ -8,7 +8,7 @@ sys.path.insert(0,'/Users/ashwin/Documents/Y4 project Brain Human Interfaces/Gen
 from objects import *
 
 
-
+# NO methods should be placed here
 
 def initialiseGame():
 
@@ -68,7 +68,13 @@ def initialiseGame():
     # initialise out of test mode
     gameEngine.testMode = False
 
-    # 
+    # set times for calibration, otherwise leave as none
+    gameEngine.timeBeforeCalibration = 6000 # when it asks user to wait for 5 seconds
+    gameEngine.calibrationTime = 7000 
+    gameEngine.timeBeforeStart = 2000
+    
+
+
     gameEngine.fps = 30
 
     # metadata for placing target
@@ -88,6 +94,30 @@ def initialiseGame():
     # max targets
     gameEngine.maxTargets = 5
 
+
+   
+    
+    # set whether this will be simulated or rely on online data 
+    useSimulatedData = False
+    
+    # set whether this will take user input through a pc or using the motive body tracking system
+    userInputMethod = "bodyTracking" # either "PC" or "bodyTracking"
+
+    # set which body part is being used to control if body tracking, this will be the body part that will be used for calibration
+    # if not body tracking, set as none
+    inputBodyPart = "RHand" # needs to be a rigid body part as seen in config_streaming
+    
+
+    # set whether this will write data to file and set file location (set none if not writing data)
+    saveGameData = False
+    saveGameDataPath = None
+
+    # set calibrated to False so program starts in calibration mode, if not using real time data leave as None
+    calibrated = False
+
+    
+    # set all game configurations using a configuration class
+    gameEngine.config = Config(useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated)
 
     return gameEngine 
 
