@@ -23,7 +23,10 @@ def startupGame(gameEngine):
         
         # fetch body tracking data if needed
         if gameEngine.config.userInputMethod == "bodyTracking":
-            gameEngine.fetchSharedMemoryData()
+            try:
+                gameEngine.fetchSharedMemoryData()
+            except IndexError:
+                gameEngine.quitProgram()
 
         gameEngine.gatherKeyPresses()
 
@@ -95,7 +98,10 @@ def startupGame(gameEngine):
         gameEngine.clock.tick(gameEngine.fps)
         gameEngine.checkRunningStatus()
     # End Pygame
+    gameEngine.endTime = pygame.time.get_ticks()
     pygame.quit()
+    # If requested save data
+    gameEngine.saveData()
     return gameEngine
 
 

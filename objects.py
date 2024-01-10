@@ -8,6 +8,7 @@ import math
 from multiprocessing import shared_memory
 import time
 from config_streaming import rigidBodyParts
+import pickle
 
 class GameStats():
     """
@@ -20,13 +21,16 @@ class Config():
     """
     Holds information about configuration of game chosen
     """
-    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated):
+    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath):
         self.useSimulatedData = useSimulatedData
         self.userInputMethod = userInputMethod
         self.saveGameData = saveGameData
         self.saveGameDataPath = saveGameDataPath
         self.inputBodyPart = inputBodyPart
         self.calibrated = calibrated
+        self.txtFile = txtFile
+        self.useSimulatedDataPath = useSimulatedDataPath
+
 
 
 
@@ -546,9 +550,16 @@ class Target:
         self.color = color
         self.rect = pygame.Rect(0, 0, width, height)  # initialise it
         self.place_randomly(gameEngine)
+        
+        # sometimes when reading data the program can run too quick as loops execute quicker 
+        # so detect if the program is finished
+        if self.outOfRangeError:
+            return 
+        
         self.useImg = useImg
         if self.useImg:
             self.currentImage = pygame.transform.scale(image,(width,height))
+        
 
         #self.rect = self.image.get_rect(topleft=(x, y))
 
@@ -575,16 +586,30 @@ class Target:
             screen_height (int): The height of the screen.
             walls (list): A list of pygame.Rect objects representing the walls.
         """
-        placed = False
-        while not placed:
-            # Generate a random location
-            x = random.randint(0, gameEngine.screen_width - self.width)
-            y = random.randint(0, gameEngine.screen_height - self.height)
-            self.rect.topleft = (x, y)
+        try:
+            if gameEngine.config.useSimulatedData:
+                x = gameEngine.readTargetGeneratedLocations[gameEngine.readTargetGeneratedLocationsIteration][0]
+                y = gameEngine.readTargetGeneratedLocations[gameEngine.readTargetGeneratedLocationsIteration][1]
+                self.rect.topleft = (x, y)
+            else:
+                placed = False
+                while not placed:
+                    # Generate a random location
+                    x = random.randint(0, gameEngine.screen_width - self.width)
+                    y = random.randint(0, gameEngine.screen_height - self.height)
+                    self.rect.topleft = (x, y)
 
-            # Check if the target is in a wall
-            if not any(wall.rect.colliderect(self.rect) for wall in gameEngine.maze.wallList):
-                placed = True
+                    # Check if the target is in a wall
+                    if not any(wall.rect.colliderect(self.rect) for wall in gameEngine.maze.wallList):
+                        placed = True
+            self.outOfRangeError = False
+        except IndexError:
+            print("Program appears to have finished early, exiting program")
+            self.outOfRangeError = True
+
+                    
+
+
 
 class Dangerzone():
 
@@ -678,10 +703,33 @@ class GameEngine():
         self.minions = []
         self.placeMinionTime = None
         self.energyZones = []
+
+    def calcRunTime(self):
+        self.programRunTime = 1000 * self.programRunTime
         
 
     # functions to handle optitrack inputs
-        
+    def retrieveSavedDataStores(self):
+        """
+        Retrieves control and rigid body datastores for later
+        """
+        #data = np.load(self.config.useSimulatedDataPath,allow_pickle=True)
+        with open(self.config.useSimulatedDataPath, 'rb') as file:
+            oldGameEngine = pickle.load(file)
+        self.controlBodyPartReadDatastore = oldGameEngine.controlRigidBodyDatastore
+        self.controlBodyPartReadDatastoreIteration = 0
+
+        self.allBodyPartsReadDatastore = oldGameEngine.allBodyPartsDatastore
+        self.allBodyPartsReadDatastoreIteration = 0
+
+        self.readTargetGeneratedLocations = oldGameEngine.targetGeneratedLocations
+        self.readTargetGeneratedLocationsIteration = 0
+
+        # to help ensure correct samples are used for calibration
+        self.lastLeftRightRecording = oldGameEngine.lastLeftRightRecording
+        self.lastUpDownRecording = oldGameEngine.lastUpDownRecording
+        self.forecastedEndTime = oldGameEngine.endTime
+
     def initSharedMemory(self,sharedMemoryName,noDataTypes,noBodyParts):
         """
         Function initialises parameters of the shared memory for use later. This function should only 
@@ -752,22 +800,36 @@ class GameEngine():
 
             
             # SAVE DATA IF REQUESTED
-            if self.config.saveGameData == True:
-                # Write the information of the control rigid body to the relevant datastore
-                self.controlRigidBodyDatastore[self.controlRigidBodyDatastoreIteration,:] = controlRigidBodyInitialData[:6]
-                self.controlRigidBodyDatastoreIteration += 1
-
-                # Write all rigid body part information to the relavent datastore
-                self.allBodyPartsDatastore[self.allBodyPartsDataStoreIteration,:,:] =  np.array(shared_array[:,0:6])
-                self.allBodyPartsDataStoreIteration += 1
+            
 
 
         elif self.config.useSimulatedData: # USING SIMULATED DATA
 
             # read data from datastore and increment index
-            controlRigidBodyInitialData = self.controlBodyPartreadDataStore[self.controlBodyPartreadDataStoreIteration] 
-            self.controlBodyPartreadDataStoreIteration += 1
+            controlRigidBodyInitialData = self.controlBodyPartReadDatastore[self.controlBodyPartReadDatastoreIteration] 
+            self.controlBodyPartReadDatastoreIteration += 1
 
+            allBodyParts = self.allBodyPartsReadDatastore[self.allBodyPartsReadDatastoreIteration] 
+            self.allBodyPartsReadDatastoreIteration += 1
+
+        
+        if self.config.saveGameData == True and self.config.useSimulatedData == False:
+            # Write the information of the control rigid body to the relevant datastore
+            self.controlRigidBodyDatastore.append(controlRigidBodyInitialData[:6])
+            self.controlRigidBodyDatastoreIteration += 1
+
+            # Write all rigid body part information to the relavent datastore
+            self.allBodyPartsDatastore.append(np.array(shared_array[:,0:6])) 
+            self.allBodyPartsDatastoreIteration += 1
+        elif self.config.saveGameData == True:
+
+            # Write the information of the control rigid body to the relevant datastore
+            self.controlRigidBodyDatastore.append(controlRigidBodyInitialData[:6])
+            self.controlRigidBodyDatastoreIteration += 1
+
+            # Write all rigid body part information to the relavent datastore
+            allBodyParts = self.allBodyPartsReadDatastore[self.allBodyPartsReadDatastoreIteration] 
+            self.allBodyPartsReadDatastoreIteration += 1
             # TODO: add workflow to save read data if needed at a later stage
 
         
@@ -840,16 +902,35 @@ class GameEngine():
         currTime = pygame.time.get_ticks()
 
         # collect data for left and right for 3.5 s
-        while pygame.time.get_ticks() <currTime + 3500:
-            self.fetchSharedMemoryData()
-            # TODO: may need to adjust these for different rigid bodies
-            # as game x is typically the body y plane (right) and game y is the body z plane (up) 
-            self.userMaxXValue = max(self.controlPos[1],self.userMaxXValue)
-            self.userMinXValue = min(self.controlPos[1],self.userMinXValue)
-            self.calibrationPos_rl.append(self.controlPos)
-            self.calibrationDir_rl.append(self.controlDir)
-            print(self.userMinXValue,self.userMaxXValue)
-            time.sleep(1/120)
+        
+
+        if not self.config.useSimulatedData:
+            self.lastLeftRightRecording = 0
+            while pygame.time.get_ticks() <currTime + 3500:
+                self.fetchSharedMemoryData()
+                # TODO: may need to adjust these for different rigid bodies
+                # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+                self.userMaxXValue = max(self.controlPos[1],self.userMaxXValue)
+                self.userMinXValue = min(self.controlPos[1],self.userMinXValue)
+                self.calibrationPos_rl.append(self.controlPos)
+                self.calibrationDir_rl.append(self.controlDir)
+                print(self.userMinXValue,self.userMaxXValue)
+                time.sleep(1/120)
+                self.lastLeftRightRecording += 1
+                
+
+        elif self.config.useSimulatedData:
+            while self.controlBodyPartReadDatastoreIteration < self.lastLeftRightRecording + 1:
+                self.fetchSharedMemoryData()
+                # TODO: may need to adjust these for different rigid bodies
+                # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+                self.userMaxXValue = max(self.controlPos[1],self.userMaxXValue)
+                self.userMinXValue = min(self.controlPos[1],self.userMinXValue)
+                self.calibrationPos_rl.append(self.controlPos)
+                self.calibrationDir_rl.append(self.controlDir)
+                print(self.userMinXValue,self.userMaxXValue)
+                time.sleep(1/120)
+
         
         # apply pca
         
@@ -902,17 +983,29 @@ class GameEngine():
         self.calibrationDir_rl = []
 
         # collect data for up and down for 3.5 s
-        while pygame.time.get_ticks() <currTime + 3500:
-            self.fetchSharedMemoryData()
-            # TODO: may need to adjust these for different rigid bodies
-            # as game x is typically the body y plane (right) and game y is the body z plane (up) 
-            
-            self.calibrationPos_rl.append(self.controlPos)
-            self.calibrationDir_rl.append(self.controlDir)
-            print(self.userMinXValue,self.userMaxXValue)
-            time.sleep(1/120)
-        
-        # apply pca
+        if not self.config.useSimulatedData:
+            self.lastUpDownRecording = self.lastLeftRightRecording + 2
+            while pygame.time.get_ticks() <currTime + 3500:
+                self.fetchSharedMemoryData()
+                # TODO: may need to adjust these for different rigid bodies
+                # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+                
+                self.calibrationPos_rl.append(self.controlPos)
+                self.calibrationDir_rl.append(self.controlDir)
+                print(self.userMinXValue,self.userMaxXValue)
+                time.sleep(1/120)
+                self.lastUpDownRecording += 1
+        elif self.config.useSimulatedData:
+            while self.controlBodyPartReadDatastoreIteration < self.lastUpDownRecording + 1:
+                self.fetchSharedMemoryData()
+                # TODO: may need to adjust these for different rigid bodies
+                # as game x is typically the body y plane (right) and game y is the body z plane (up) 
+                
+                self.calibrationPos_rl.append(self.controlPos)
+                self.calibrationDir_rl.append(self.controlDir)
+                print(self.userMinXValue,self.userMaxXValue)
+                time.sleep(1/120)
+                # apply pca
         
         self.calibrationPos_rl = np.asarray(self.calibrationPos_rl)
         #X_std = StandardScaler().fit_transform(self.calibrationPos_rl)
@@ -945,7 +1038,7 @@ class GameEngine():
         else:
             self.yInvert = False
 
-
+        self.calibrationLastRecording = self.lastUpDownRecording + 2
         print("PCA based calibration has finished" )
 
 
@@ -981,22 +1074,37 @@ class GameEngine():
             shared_array = np.ndarray(shape=self.sharedMemShape, dtype=np.float64, buffer=shared_block.buf)
             controlBodyData = np.array(shared_array[self.controlBodyPartIdx])
 
-            # Record data if requested
-            if self.config.saveGameData is True: 
-                # Record control body
-                self.controlBodyPartDataStore[self.controlBodyPartDataStoreIteration,:] = controlBodyData[:6]
-                self.controlBodyPartDataStoreIteration += 1
-
-                # Record all rigid bodies
-                self.allBodyPartsDatastore[self.allBodyPartsDataStoreIteration,:,:] =  np.array(shared_array[:,0:6])
-                self.allBodyPartsDataStoreIteration += 1
+            
 
         # Read control rigid body data from datastore if using simulated data
         elif self.config.useSimulatedData is True:
-            controlBodyData = self.controlBodyPartreadDataStore[self.controlBodyPartreadDataStoreIteration] 
-            self.controlBodyPartreadDataStoreIteration += 1
+            controlBodyData = self.controlBodyPartReadDatastore[self.controlBodyPartReadDatastoreIteration] 
+            self.controlBodyPartReadDatastoreIteration += 1
             
-        
+            allBodyParts = self.allBodyPartsReadDatastore[self.allBodyPartsReadDatastoreIteration] 
+            self.allBodyPartsReadDatastoreIteration += 1
+
+            
+        # Record data if requested 
+        if self.config.saveGameData is True and self.config.useSimulatedData is False: 
+            # Record control body
+            self.controlRigidBodyDatastore.append(controlBodyData[:6])
+            self.controlRigidBodyDatastoreIteration += 1
+
+            # Record all rigid bodies
+            self.allBodyPartsDatastore.append(np.array(shared_array[:,0:6]))
+            self.allBodyPartsDatastoreIteration += 1
+
+        elif self.config.saveGameData is True:
+            # Record data from read data
+
+            # Record control body
+            self.controlRigidBodyDatastore.append(controlBodyData[:6])
+            self.controlRigidBodyDatastoreIteration += 1
+
+            # Record all rigid bodies
+            self.allBodyPartsDatastore.append(allBodyParts)
+            self.allBodyPartsDatastoreIteration += 1
         # Process the data 
 
         # both workflows have this adjustment
@@ -1156,6 +1264,18 @@ class GameEngine():
         if pygame.time.get_ticks() -  self.lastTargetPlacedTime > self.targetPlaceFrequency and len(self.targets) < self.maxTargets:
             # place target every self.targetPlaceFrequency seconds
             self.targets.append(Target(self.targetWidth,self.targetHeight,self.colours['RED'],self,useImg=True,image=self.targetImage))
+            
+            # End the program if target overflow
+            if self.targets[-1].outOfRangeError ==  True:
+                del self.targets[-1]
+                self.quitProgram()
+                return 
+            
+            # save each position if requested
+            if self.config.saveGameData:
+                self.targetGeneratedLocations.append([self.targets[-1].rect.x,self.targets[-1].rect.y])
+            if self.config.useSimulatedData:
+                self.readTargetGeneratedLocationsIteration += 1
             self.lastTargetPlacedTime = pygame.time.get_ticks()
     
     def drawTargets(self):
@@ -1200,6 +1320,8 @@ class GameEngine():
         if self.testMode == True:
             if pygame.time.get_ticks() > self.testTime:
                 self.quitProgram()
+        if pygame.time.get_ticks() > self.programRunTime:
+            self.quitProgram()
     def gatherKeyPresses(self):
 
         for event in pygame.event.get():
@@ -1217,6 +1339,54 @@ class GameEngine():
     
     def quitProgram(self):
         self.running = False
+    
+    def saveData(self):
+        if self.config.saveGameData:
+            self.controlRigidBodyDatastore = np.asarray(self.controlRigidBodyDatastore)
+            self.allBodyPartsDatastore = np.asarray(self.allBodyPartsDatastore)
+            self.targetGeneratedLocations = np.asarray(self.targetGeneratedLocations)
+            del self.screen
+            del self.skullImage
+            del self.dangerzone.activeImage
+            del self.piranhaImage
+            del self.targetImage
+            del self.blinkingSkull.image
+            del self.piranhaOffSign.screen
+            del self.piranhaOnSign.screen
+            del self.font
+            del self.cursor.images
+            del self.cursor.currentImage
+            del self.piranhaOffSign.font
+            del self.piranhaOnSign.font
+            del self.text
+            del self.clock
+
+            
+            for idx in range(0,len(self.targets)):
+                del self.targets[idx].currentImage
+
+            for idx in range(0,len(self.minions)):
+                del self.minions[idx].currentImage
+                del self.minions[idx].image
+
+            for idx in range(0,len(self.maze.wallList)):
+                del self.maze.wallList[idx].surface
+            #np.savez(file = self.config.saveGameDataPath, gameEngine = self)
+            with open(self.config.saveGameDataPath, 'wb') as file:
+                pickle.dump(self, file)
+    
+    def initialiseDataStores(self):
+        # noVars = 6
+        # noBodyParts = 51
+        #Initialise write datastores 
+        self.controlRigidBodyDatastore = []
+        self.controlRigidBodyDatastoreIteration = 0
+        self.allBodyPartsDatastore = []
+        self.allBodyPartsDatastoreIteration = 0
+        self.targetGeneratedLocations = []
+
+
+
 
 
 

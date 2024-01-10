@@ -18,13 +18,24 @@ def runGameSetup(gameEngine):
 
     # now perform any configuration based workflows 
 
-    #initialise shared memory if using rigid body tracking
+    # initialise data stores if save data requested
+    if gameEngine.config.saveGameData:
+        gameEngine.initialiseDataStores()
     
+    # initialise read data stores if data is being read
+    if gameEngine.config.useSimulatedData:
+        gameEngine.retrieveSavedDataStores()
+
+    #initialise shared memory if using rigid body tracking
 
     if gameEngine.config.userInputMethod == "bodyTracking":
         gameEngine.initSharedMemory('Test Rigid Body', 7,51)
         gameEngine.enterCalibrationStage()
         gameEngine.performCalibrationStage()
+
+    # calculate run time 
+    gameEngine.calcRunTime()
+    
 
 
 
