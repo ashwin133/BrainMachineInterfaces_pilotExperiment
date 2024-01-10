@@ -21,7 +21,8 @@ class Config():
     """
     Holds information about configuration of game chosen
     """
-    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath):
+    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath
+                 ):
         self.useSimulatedData = useSimulatedData
         self.userInputMethod = userInputMethod
         self.saveGameData = saveGameData
@@ -30,6 +31,7 @@ class Config():
         self.calibrated = calibrated
         self.txtFile = txtFile
         self.useSimulatedDataPath = useSimulatedDataPath
+
 
 
 
@@ -268,8 +270,81 @@ class Wall:
             #pygame.draw.rect(gameEngine.screen, self.color, self.rect)
             gameEngine.screen.blit(self.surface, self.rect)
 
+class CursorPredictor:
 
+    def __init__(self,x,y,width,height,color,gameEngine):
+        """
+        Initialize a cursor predictor with inertia.
 
+        Args:
+            x (int): The x-coordinate of the cursor's starting position.
+            y (int): The y-coordinate of the cursor's starting position.
+            width (int): The width of the cursor.
+            height (int): The height of the cursor.
+            color (tuple): The color of the cursor in RGB.
+            gameEngine (GameEngine): Must contain a N x 2 array corresponding to velocities each timestamp
+
+        """
+
+        self.rect = pygame.Rect(x, y, width, height)
+        self.healthyCursorColour = color
+        self.color = self.healthyCursorColour
+        self.frozenCursorColour = color  # set at red
+        self.velocity = [0, 0]  # Velocity in pixels per frame (x, y)
+        self.acceleration = 2    # Acceleration rate
+        self.friction = 0.92      # Friction coefficient
+        self.resetLatch = 0
+        self.readCursorPredictorVelocityDatastore = gameEngine.readCursorPredictorVelocityDatastore
+        self.readCursorPredictorVelocityDatastoreIteration = 0
+        # Scale the image
+
+        self.xRange = gameEngine.xRange
+        self.yRange = gameEngine.yRange
+        self.debugger = gameEngine.debugger
+
+    def update(self):
+        """
+        Update the cursor's position based on its velocity, applying friction.
+        """
+
+        if True:
+
+            # Apply friction to the velocity to create inertia
+            self.velocity[0] *= self.friction
+            self.velocity[1] *= self.friction
+
+            # Update the cursor's position
+            self.rect.x += self.velocity[0]
+            self.rect.y += self.velocity[1]
+
+            # Keep the cursor within the window bounds
+            if self.rect.left < 0:
+                self.rect.left = 0
+                self.velocity[0] = 0
+            if self.rect.right > pygame.display.get_surface().get_width():
+                self.rect.right = pygame.display.get_surface().get_width()
+                self.velocity[0] = 0
+            if self.rect.top < 50:
+                self.rect.top = 50
+                self.velocity[1] = 0
+            if self.rect.bottom > pygame.display.get_surface().get_height():
+                self.rect.bottom = pygame.display.get_surface().get_height()
+                self.velocity[1] = 0
+    
+    def draw(self, screen):
+        """
+        Draw the cursor onto the screen.
+
+        Args:
+            screen (pygame.Surface): The surface to draw the cursor on.
+        """
+
+        pygame.draw.rect(screen, self.color, self.rect)
+    
+    def retrieveLatestVelocities(self):
+        self.velocity[0] = self.readCursorPredictorVelocityDatastore[self.readCursorPredictorVelocityDatastoreIteration,0]
+        self.velocity[0] = self.readCursorPredictorVelocityDatastore[self.readCursorPredictorVelocityDatastoreIteration,1]
+        self.readCursorPredictorVelocityDatastoreIteration += 1
 
 class Cursor:
     def __init__(self, x, y, width, height, color,imagePaths,frozenColour = (255,0,0),useImg = True,delaySamples = 0,unstableMode = False,controlMethod = 'Mouse',gameEngine = None):
@@ -317,6 +392,7 @@ class Cursor:
         self.xRange = gameEngine.xRange
         self.yRange = gameEngine.yRange
         self.debugger = gameEngine.debugger
+        self.bodyController = "VelocityBased"
         self.usePCA = gameEngine.performCalibrationUsingPrincipleComponent
         if self.usePCA:
             self.leftRightPCA = gameEngine.pcaleftRight
@@ -458,9 +534,9 @@ class Cursor:
                 self.velocity[1] += distanceY * 0.02
 
         elif self.controlMethod == "bodyTracking":
-                bodyController = "VelocityBased"
+                
 
-                if bodyController == "PositionBased":
+                if self.bodyController == "PositionBased":
 
                     if self.usePCA:
                         
@@ -474,7 +550,7 @@ class Cursor:
                     self.rect.x = normalised_x_val * pygame.display.get_surface().get_width()
                     self.rect.y = normalised_y_Val * pygame.display.get_surface().get_height()
                 
-                elif bodyController == "VelocityBased":
+                elif self.bodyController == "VelocityBased":
                     if self.usePCA:
                         if self.xInvert:
                             normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
@@ -495,6 +571,7 @@ class Cursor:
                     distanceY = y_target - self.rect.centery
                     self.velocity[0] = distanceX * 0.06
                     self.velocity[1] = distanceY * 0.06
+
 
                 
 
@@ -761,7 +838,22 @@ class GameEngine():
             # nothing happens as shared memory is not needed as input is not body tracking
             self.debugger.disp(3,'Shared memory not being used as control method is not bodyTracking', '')
 
+    def saveControlCursorData(self):
+        if self.config.saveGameData:
 
+            # Save velocity data if cursor is velocity controlled
+            if self.cursor.bodyController == "VelocityBased":
+                try:
+                    self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1][0][0]])
+                except:
+                    if self.cursor.velocity == [0,0]:
+                        self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1]])
+                    elif self.cursor.velocity[0] == 0:
+                        self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1][0][0]])
+                    elif self.cursor.velocity[1] == 0:
+                        self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1]])
+                    else:
+                        print('debug')
     def enterCalibrationStage(self):
         """
         Enter calibration stage for rigid body tracking only
@@ -1345,6 +1437,7 @@ class GameEngine():
             self.controlRigidBodyDatastore = np.asarray(self.controlRigidBodyDatastore)
             self.allBodyPartsDatastore = np.asarray(self.allBodyPartsDatastore)
             self.targetGeneratedLocations = np.asarray(self.targetGeneratedLocations)
+            self.cursorVelocityWriteDatastore = np.asarray(self.cursorVelocityWriteDatastore)
             del self.screen
             del self.skullImage
             del self.dangerzone.activeImage
@@ -1379,12 +1472,17 @@ class GameEngine():
         # noVars = 6
         # noBodyParts = 51
         #Initialise write datastores 
+        self.cursorVelocityWriteDatastore = []
+        self.cursorVelocityWriteDatastoreIteration = 0
         self.controlRigidBodyDatastore = []
         self.controlRigidBodyDatastoreIteration = 0
         self.allBodyPartsDatastore = []
         self.allBodyPartsDatastoreIteration = 0
         self.targetGeneratedLocations = []
 
+    def setupCursorPredictor(self):
+        self.readCursorPredictorVelocityDatastore = np.load(self.config.showPredictorLocation)['predVelocities']
+        self.cursorPredictor = CursorPredictor( x=self.screen_width//2, y=self.screen_height//2, width=60, height=40,color=(255, 255, 255),gameEngine = self)
 
 
 

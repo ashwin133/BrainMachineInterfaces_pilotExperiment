@@ -36,7 +36,9 @@ def runGameSetup(gameEngine):
     # calculate run time 
     gameEngine.calcRunTime()
     
-
+    # set up cursor predictor if requested
+    if gameEngine.config.showPredictor:
+        gameEngine.setupCursorPredictor()
 
 
     # Set up fonts

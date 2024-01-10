@@ -76,7 +76,7 @@ def initialiseGame():
 
 
     gameEngine.fps = 30
-    gameEngine.programRunTime = 90
+    gameEngine.programRunTime = 650
     # metadata for placing target
     gameEngine.targetPlaceFrequency = 3000
     gameEngine.targetWidth = 40
@@ -90,12 +90,16 @@ def initialiseGame():
     gameEngine.minionWidth = 60
     gameEngine.minionHeight = 40
     gameEngine.minionSpeed = 4
+    #
 
     # max targets
     gameEngine.maxTargets = 5
 
 
-   
+    # Decide whether to setup game in simple mode
+    # setting to true will cause the game to start with only one target displayed at a time and with minions spawning randomly
+    # with no energy zones
+    gameEngine.simplemode = False
     
     # set whether this will be simulated or rely on online data 
     useSimulatedData = True
@@ -110,17 +114,23 @@ def initialiseGame():
     
 
     # set whether this will write data to file and set file location (set none if not writing data)
-    saveGameData = False
+    saveGameData = True
     saveGameDataPath = "GameSaves/Ashwin_09_01__17_20_90s_updated.pkl" # must be in format "Name_dd_mm__hh_mm_length" length is optional
     txtFile = "Collecting test set of 1.5 minutes of right hand movement" # can add a description here if needed
 
     # set calibrated to False so program starts in calibration mode, if not using real time data leave as None
     calibrated = False
 
+
+
     
     # set all game configurations using a configuration class
-    gameEngine.config = Config(useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath)
+    gameEngine.config = Config(useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath
+                               )
 
+    # show cursor predictor
+    gameEngine.config.showPredictor = True
+    gameEngine.config.showPredictorLocation = "CursorPredictors/Ashwin_09_01_rigidBodyB.npz"
     return gameEngine 
 
 if __name__ == "__main__":

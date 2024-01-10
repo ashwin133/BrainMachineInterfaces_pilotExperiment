@@ -30,6 +30,9 @@ def startupGame(gameEngine):
 
         gameEngine.gatherKeyPresses()
 
+        # Save control cursor data if in save mode
+        gameEngine.saveControlCursorData()
+
         gameEngine.checkIfCursorHitWall()
 
         gameEngine.checkIfCursorHitTarget()
@@ -65,6 +68,12 @@ def startupGame(gameEngine):
         gameEngine.cursor.handle_keys()  # Adjust cursor velocity based on keys pressed
         gameEngine.cursor.update()       # Update cursor position
         gameEngine.cursor.draw(gameEngine.screen)   # Draw cursor
+
+        # Draw cursor predictor if present
+        if gameEngine.config.showPredictor:
+            gameEngine.cursorPredictor.update()
+            gameEngine.cursorPredictor.retrieveLatestVelocities()
+            gameEngine.cursorPredictor.draw(gameEngine.screen)
 
         # check if any minions hit the cursor
         gameEngine.checkIfMinionHitCursor()
