@@ -99,11 +99,11 @@ def initialiseGame():
     # Decide whether to setup game in simple mode
     # setting to true will cause the game to start with only one target displayed at a time and with minions spawning randomly
     # with no energy zones
-    gameEngine.simplemode = False
+    gameEngine.simpleMode = False
     
     # set whether this will be simulated or rely on online data 
     useSimulatedData = True
-    useSimulatedDataPath = "GameSaves/Ashwin_09_01__17_20_90s_updated.pkl"
+    useSimulatedDataPath = "GameSaves/Ashwin_09_01__17_20_90s.pkl"
     
     # set whether this will take user input through a pc or using the motive body tracking system
     userInputMethod = "bodyTracking" # either "PC" or "bodyTracking"
@@ -129,7 +129,7 @@ def initialiseGame():
                                )
 
     # show cursor predictor
-    gameEngine.config.showPredictor = True
+    gameEngine.config.showPredictor = False
     gameEngine.config.showPredictorLocation = "CursorPredictors/Ashwin_09_01_rigidBodyB.npz"
     return gameEngine 
 

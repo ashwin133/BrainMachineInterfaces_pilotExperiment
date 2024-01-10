@@ -71,11 +71,13 @@ def runGameSetup(gameEngine):
     
     gameEngine.cursor = Cursor(x=gameEngine.screen_width//2, y=gameEngine.screen_height//2, width=60, height=40, color=(255, 255, 255),imagePaths=cursorPaths,delaySamples=delayLength,unstableMode=unstableCursor,controlMethod= controlMethod,gameEngine = gameEngine)
     
-    
+    if gameEngine.simpleMode == True:
+        gameEngine.maxTargets = 1
 
     # initialise skull zone image
     skullImagePath = "Images/skull_bright_orange.png"
     gameEngine.skullImage = pygame.image.load(skullImagePath)
+    
     gameEngine.spawnDangerZone(25,665,50,50)
 
     # initialise danger bar
@@ -86,7 +88,8 @@ def runGameSetup(gameEngine):
     gameEngine.piranhaImage = pygame.image.load(pathToPiranhaImage)
 
     # spawn energy zones
-    gameEngine.spawnEnergyZones()
+    if gameEngine.simpleMode == False:
+        gameEngine.spawnEnergyZones()
 
     # initialise target image
     pathToTargetImage = "Images/gem1.png"

@@ -388,17 +388,17 @@ class Cursor:
                 for _ in range(delaySamples):
                     self.velocity_queue.put([0,0])
                 #print(self.velocity_queue)
-
-        self.xRange = gameEngine.xRange
-        self.yRange = gameEngine.yRange
-        self.debugger = gameEngine.debugger
-        self.bodyController = "VelocityBased"
-        self.usePCA = gameEngine.performCalibrationUsingPrincipleComponent
-        if self.usePCA:
-            self.leftRightPCA = gameEngine.pcaleftRight
-            self.upDownPCA = gameEngine.pcaUpDown
-            self.xInvert = gameEngine.xInvert
-            self.yInvert = gameEngine.yInvert
+        if gameEngine.config.userInputMethod  == "bodyTracking":
+            self.xRange = gameEngine.xRange
+            self.yRange = gameEngine.yRange
+            self.debugger = gameEngine.debugger
+            self.bodyController = "VelocityBased"
+            self.usePCA = gameEngine.performCalibrationUsingPrincipleComponent
+            if self.usePCA:
+                self.leftRightPCA = gameEngine.pcaleftRight
+                self.upDownPCA = gameEngine.pcaUpDown
+                self.xInvert = gameEngine.xInvert
+                self.yInvert = gameEngine.yInvert
                 
 
     def update(self):
@@ -414,7 +414,7 @@ class Cursor:
             self.velocity[0] *= self.friction
             self.velocity[1] *= self.friction
 
-            # Update the cursor's position
+            # Update the cursor's positionƒri
             self.rect.x += self.velocity[0]
             self.rect.y += self.velocity[1]
 
@@ -854,6 +854,9 @@ class GameEngine():
                         self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1]])
                     else:
                         print('debug')
+            
+            # Save position data
+            self.cursorPositionWriteDatastore.append([self.cursor.rect.x, self.cursor.rect.y])
     def enterCalibrationStage(self):
         """
         Enter calibration stage for rigid body tracking only
@@ -1252,29 +1255,43 @@ class GameEngine():
         self.dangerBar.update()
         if self.dangerBar.progress > 0.99 and self.placeMinionTime is None:
             self.placeMinionTime = pygame.time.get_ticks() + 3000
-            self.dangerzone.active = True
+            
             self.piranhaOnSign.activate()
-            self.activateEnergyZones()
+            self.dangerzone.active = True
+            if self.simpleMode == False:
+                
+                self.activateEnergyZones()
+            else:
+                self.simpleModeMinionEndTime = pygame.time.get_ticks() + 20000
         
-        if self.dangerzone.active == True:
-            # Check if all energy zones are charged if danger zone is active
+        if self.simpleMode == False:
+            if self.dangerzone.active == True:
+                # Check if all energy zones are charged if danger zone is active
 
-            fullyCharged = True
-            for energyZone in self.energyZones:
-                if energyZone.charge != 100:
-                    fullyCharged = False
+                fullyCharged = True
+                for energyZone in self.energyZones:
+                    if energyZone.charge != 100:
+                        fullyCharged = False
 
-            if fullyCharged:  # minion off
+                if fullyCharged:  # minion off
+                    self.placeMinionTime = None
+                    self.dangerzone.active = False
+
+                    self.dangerBar.start_time = pygame.time.get_ticks()
+                    for energyZone in self.energyZones:
+                        energyZone.charge = 100
+                        energyZone.minionSpawn = False
+                    
+                    self.piranhaOffSign.activate()
+                # add code
+        else:
+            if self.simpleMode and self.placeMinionTime is not None and pygame.time.get_ticks() > self.simpleModeMinionEndTime:
                 self.placeMinionTime = None
                 self.dangerzone.active = False
-
                 self.dangerBar.start_time = pygame.time.get_ticks()
-                for energyZone in self.energyZones:
-                    energyZone.charge = 100
-                    energyZone.minionSpawn = False
-                
                 self.piranhaOffSign.activate()
-                # add code
+
+                
 
 
     def activateEnergyZones(self):
@@ -1321,7 +1338,10 @@ class GameEngine():
                 self.lastMinionPlacedTime = pygame.time.get_ticks()
 
     def updateAndDrawBlinkingSkull(self):
-        self.blinkingSkull.blink = self.dangerzone.active
+        if self.simpleMode is True:
+            self.blinkingSkull.blink = bool(self.placeMinionTime)
+        else:
+            self.blinkingSkull.blink = self.dangerzone.active
         self.blinkingSkull.update()
         self.blinkingSkull.draw(self)
 
@@ -1438,6 +1458,7 @@ class GameEngine():
             self.allBodyPartsDatastore = np.asarray(self.allBodyPartsDatastore)
             self.targetGeneratedLocations = np.asarray(self.targetGeneratedLocations)
             self.cursorVelocityWriteDatastore = np.asarray(self.cursorVelocityWriteDatastore)
+            self.cursorPositionWriteDatastore = np.asarray(self.cursorPositionWriteDatastore)
             del self.screen
             del self.skullImage
             del self.dangerzone.activeImage
@@ -1479,6 +1500,8 @@ class GameEngine():
         self.allBodyPartsDatastore = []
         self.allBodyPartsDatastoreIteration = 0
         self.targetGeneratedLocations = []
+        self.cursorPositionWriteDatastore = []
+        self.cursorPositionWriteDatastoreIteration = 0
 
     def setupCursorPredictor(self):
         self.readCursorPredictorVelocityDatastore = np.load(self.config.showPredictorLocation)['predVelocities']

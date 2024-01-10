@@ -117,7 +117,7 @@ class ProcessData():
         self.outputTrainingData = self.trainingDataGameEngine.cursorVelocityWriteDatastore[2:,:]
     
     def retrieveTestOutputs(self):
-        self.outputTestData = self.testDataGameEngine.cursorVelocityWriteDatastore[1:,:]
+        self.outputTestData = self.testDataGameEngine.cursorVelocityWriteDatastore[2:,:]
 
     def extractFinalCalibrationIndexes(self):
         self.testFinalCalibrationIdx = self.testDataGameEngine.calibrationLastRecording
