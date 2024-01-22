@@ -76,14 +76,14 @@ def initialiseGame():
 
 
     gameEngine.fps = 30
-    gameEngine.programRunTime = 650
+    gameEngine.programRunTime = 120
     # metadata for placing target
     gameEngine.targetPlaceFrequency = 3000
     gameEngine.targetWidth = 40
     gameEngine.targetHeight = 40
 
     # load in unstable mode
-    gameEngine.unstableMode = False
+    gameEngine.unstableMode = True
 
     # metadata for placing minion
     gameEngine.minionPlaceFrequency = 10000
@@ -103,7 +103,7 @@ def initialiseGame():
     
     # set whether this will be simulated or rely on online data 
     useSimulatedData = True
-    useSimulatedDataPath = "GameSaves/Ashwin_09_01__17_05_10mins.pkl"
+    useSimulatedDataPath = "GameSaves/Ashwin_22_01__15_46_8min.pkl"
     
     # set whether this will take user input through a pc or using the motive body tracking system
     userInputMethod = "bodyTracking" # either "PC" or "bodyTracking"
@@ -114,9 +114,9 @@ def initialiseGame():
     
 
     # set whether this will write data to file and set file location (set none if not writing data)
-    saveGameData = True
-    saveGameDataPath = "GameSaves/Ashwin_09_01__17_05_10mins_updated2.pkl" # must be in format "Name_dd_mm__hh_mm_length" length is optional
-    txtFile = "Collecting test set of 1.5 minutes of right hand movement" # can add a description here if needed
+    saveGameData = False
+    saveGameDataPath = "GameSaves/Ashwin_22_01__15_56_2min_updated.pkl" # must be in format "Name_dd_mm__hh_mm_length" length is optional
+    txtFile = "test data updated" # can add a description here if needed
 
     # set calibrated to False so program starts in calibration mode, if not using real time data leave as None
     calibrated = False

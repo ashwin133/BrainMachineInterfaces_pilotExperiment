@@ -343,7 +343,7 @@ class CursorPredictor:
     
     def retrieveLatestVelocities(self):
         self.velocity[0] = self.readCursorPredictorVelocityDatastore[self.readCursorPredictorVelocityDatastoreIteration,0]
-        self.velocity[0] = self.readCursorPredictorVelocityDatastore[self.readCursorPredictorVelocityDatastoreIteration,1]
+        self.velocity[1] = self.readCursorPredictorVelocityDatastore[self.readCursorPredictorVelocityDatastoreIteration,1]
         self.readCursorPredictorVelocityDatastoreIteration += 1
 
 class Cursor:
@@ -392,7 +392,7 @@ class Cursor:
             self.xRange = gameEngine.xRange
             self.yRange = gameEngine.yRange
             self.debugger = gameEngine.debugger
-            self.bodyController = "VelocityBased"
+            self.bodyController = "VelocityControlled"
             self.usePCA = gameEngine.performCalibrationUsingPrincipleComponent
             if self.usePCA:
                 self.leftRightPCA = gameEngine.pcaleftRight
@@ -406,6 +406,7 @@ class Cursor:
         Update the cursor's position based on its velocity, applying friction.
         """
         if self.is_frozen:
+            
             self.velocity[0] = 0
             self.velocity[1] = 0
         else:
@@ -550,7 +551,7 @@ class Cursor:
                     self.rect.x = normalised_x_val * pygame.display.get_surface().get_width()
                     self.rect.y = normalised_y_Val * pygame.display.get_surface().get_height()
                 
-                elif self.bodyController == "VelocityBased":
+                elif self.bodyController == "DistanceErrorControlled":
                     if self.usePCA:
                         if self.xInvert:
                             normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
@@ -567,10 +568,33 @@ class Cursor:
                     x_target = normalised_x_val * pygame.display.get_surface().get_width() 
                     y_target = normalised_y_Val * pygame.display.get_surface().get_height()
                     self.debugger.disp(2,x_target,y_target)
+                    
                     distanceX = x_target - self.rect.centerx
                     distanceY = y_target - self.rect.centery
                     self.velocity[0] = distanceX * 0.06
                     self.velocity[1] = distanceY * 0.06
+
+                elif self.bodyController == "VelocityControlled":
+                   # Bug when replaying video
+                    if self.usePCA:
+                        if self.xInvert:
+                            normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                        else:
+                            normalised_x_val =   (self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                        if self.yInvert:
+                            normalised_y_Val = ( self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                        else:  
+                            normalised_y_Val = 1 - (self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                    else:
+                        normalised_x_val = 1 -  (self.controlPos[1] - self.userMinXValue) / self.xRange
+                        normalised_y_Val = 1 - (self.controlPos[2] - self.userMinYValue) / self.yRange
+
+                    # TODO: need to find new normalising constant for velocity from normalised x,y values
+
+                    self.velocity[0] = (normalised_x_val-0.5) * 30
+                    self.velocity[1] = (normalised_y_Val - 0.5 )* 30
+                    self.debugger.disp(3,'Velocity X',self.velocity[0],'Velocity Y', self.velocity[1], frequency = 30)
+
 
 
                 
@@ -840,9 +864,9 @@ class GameEngine():
 
     def saveControlCursorData(self):
         if self.config.saveGameData:
-
+            
             # Save velocity data if cursor is velocity controlled
-            if self.cursor.bodyController == "VelocityBased":
+            if self.cursor.bodyController == "velocityControlled":
                 try:
                     self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1][0][0]])
                 except:
@@ -931,8 +955,9 @@ class GameEngine():
         # Now calibrate using rigid body control data
     
         calibrationFromVector = controlRigidBodyInitialData[3:6]
+        position = controlRigidBodyInitialData[0:3]
         calibrationToVector = np.array([1,0,0]) # TODO: needs to be changed for other rigid body parts?
-        self.calcCalibrationConstants(calibrationToVector,calibrationFromVector)
+        self.calcCalibrationConstants(calibrationToVector,calibrationFromVector,position)
         self.calibratedXValue, self.calibratedYValue =  np.matmul(self.calibrationMatrix,np.array(controlRigidBodyInitialData[0:3]))[1:3]
 
         print('Correct plane has been calibrated')
@@ -1137,7 +1162,7 @@ class GameEngine():
         print("PCA based calibration has finished" )
 
 
-    def calcCalibrationConstants(self,calibrationToVector, calibrationFromVector):
+    def calcCalibrationConstants(self,calibrationToVector, calibrationFromVector,position):
         """
         attempts to calibrate for person standing off x axis by finding the transformation
         matrix to transform off axis motion to the standard axes
@@ -1145,7 +1170,7 @@ class GameEngine():
         """
         # calculate thetha from dot product
         thetha_rad = np.arccos(np.dot(calibrationToVector,calibrationFromVector)/(np.linalg.norm(calibrationToVector) * np.linalg.norm(calibrationFromVector)))
-
+        #math.atan2(np.dot(calibrationToVector,calibrationFromVector),(np.linalg.norm(calibrationToVector) * np.linalg.norm(calibrationFromVector)))
         # calculate Q
         Q = np.zeros((3,3))
         Q[0,0] = np.cos(thetha_rad)
@@ -1154,7 +1179,13 @@ class GameEngine():
         Q[1,0] = - Q[0,1]
         Q[2,2] = 1
 
+        # Now adjust the offset
+        self.offset = - position
+        # Q[0,2] = offsetX
+        # Q[1,2] = offsetY
+
         self.calibrationMatrix = Q.transpose()
+        #np.matmul(self.calibrationMatrix,np.array(calibrationFromVector[0:3]))[1:3]
 
     def fetchSharedMemoryData(self):
 
@@ -1203,7 +1234,9 @@ class GameEngine():
         # Process the data 
 
         # both workflows have this adjustment
-        self.controlPos = np.matmul(self.calibrationMatrix,controlBodyData[0:3])
+        
+        self.controlPos = np.matmul(self.calibrationMatrix,controlBodyData[0:3] + self.offset)
+        self.debugger.disp(3,'Control Pos', self.controlPos,frequency = 30)
         self.controlDir = np.matmul(self.calibrationMatrix,controlBodyData[3:6])
         
         # pass this to the cursor after calibration stage
@@ -1474,7 +1507,7 @@ class GameEngine():
             del self.piranhaOnSign.font
             del self.text
             del self.clock
-
+            del self.cursor.velocity_queue
             
             for idx in range(0,len(self.targets)):
                 del self.targets[idx].currentImage
