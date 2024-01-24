@@ -81,7 +81,7 @@ def runGameSetup(gameEngine):
     gameEngine.spawnDangerZone(25,665,50,50)
 
     # initialise danger bar
-    gameEngine.spawnDangerBar(time = 20)
+    gameEngine.spawnDangerBar(time = 15)
 
     # get piranha image
     pathToPiranhaImage = "Images/piranha.png"

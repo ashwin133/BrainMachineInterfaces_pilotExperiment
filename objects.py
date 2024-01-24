@@ -412,8 +412,8 @@ class Cursor:
         else:
 
             # Apply friction to the velocity to create inertia
-            self.velocity[0] *= self.friction
-            self.velocity[1] *= self.friction
+            #self.velocity[0] *= self.friction
+            #self.velocity[1] *= self.friction
 
             # Update the cursor's positionƒri
             self.rect.x += self.velocity[0]
@@ -866,7 +866,7 @@ class GameEngine():
         if self.config.saveGameData:
             
             # Save velocity data if cursor is velocity controlled
-            if self.cursor.bodyController == "velocityControlled":
+            if self.cursor.bodyController == "VelocityControlled":
                 try:
                     self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1][0][0]])
                 except:
@@ -1270,7 +1270,6 @@ class GameEngine():
         for energyZone in self.energyZones:
             energy = energyZone.update(self)
             if energy == 1:
-                print('flag')
                 #self.dangerBar.progress -= 0.02
                 self.dangerBar.start_time += 67
                 if self.dangerBar.progress < 0:
@@ -1288,7 +1287,7 @@ class GameEngine():
         self.dangerBar.update()
         if self.dangerBar.progress > 0.99 and self.placeMinionTime is None:
             self.placeMinionTime = pygame.time.get_ticks() + 3000
-            
+            print("Danger activate")
             self.piranhaOnSign.activate()
             self.dangerzone.active = True
             if self.simpleMode == False:

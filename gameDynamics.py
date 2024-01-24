@@ -19,7 +19,8 @@ from variables import initialiseGame
 def startupGame(gameEngine):
     gameEngine.running = True
     while gameEngine.running:
-
+        
+        print("Time: ",pygame.time.get_ticks())
         
         # fetch body tracking data if needed
         if gameEngine.config.userInputMethod == "bodyTracking":
