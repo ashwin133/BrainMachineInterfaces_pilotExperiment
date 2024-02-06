@@ -26,19 +26,33 @@ def runGameSetup(gameEngine):
     if gameEngine.config.useSimulatedData:
         gameEngine.retrieveSavedDataStores()
 
-    #initialise shared memory if using rigid body tracking
+    # Initialise shared memory if using rigid body tracking
+
+    # Retrieve pca locations if requested
+    if gameEngine.pcaLocation is not None:
+        gameEngine.retrieveStoredPCA()
+    else:
+        gameEngine.skipPCA = False
 
     if gameEngine.config.userInputMethod == "bodyTracking":
         gameEngine.initSharedMemory('Test Rigid Body', 7,51)
         gameEngine.enterCalibrationStage()
         gameEngine.performCalibrationStage()
 
+
+    if gameEngine.config.runDecoderInClosedLoop == True:
+        # Load up the decoder
+        with open(gameEngine.decoderLocation, 'rb') as file:
+            gameEngine.reg = pickle.load(file)
+        
     # calculate run time 
     gameEngine.calcRunTime()
+
     
     # set up cursor predictor if requested
     if gameEngine.config.showPredictor:
         gameEngine.setupCursorPredictor()
+
 
 
     # Set up fonts
@@ -106,7 +120,7 @@ def runGameSetup(gameEngine):
     piranhaOffFont = pygame.font.Font(None, 144)  # You can also use a specific font.
     gameEngine.piranhaOnSign = PiranhaNestSpawnedSign(gameEngine,piranhaOffFont)
 
-
+    gameEngine.fetchSharedMemoryData()
     return gameEngine
 
 

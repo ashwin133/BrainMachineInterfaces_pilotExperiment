@@ -1315,7 +1315,7 @@ class NatNetClient:
             trace( "Message ID  : %3.1d NAT_FRAMEOFDATA"% message_id )
             trace( "Packet Size : ", packet_size )
             #start = time.perf_counter()
-            import lib_streamAndRenderDataWorkflows.streamData as streamData
+            import StreamingAgent.streamData as streamData
 
             offset_tmp, mocap_data = self.__unpack_mocap_data( data[offset:], packet_size, major, minor )
             # place mocap_data into shared memory here

@@ -102,8 +102,8 @@ def initialiseGame():
     gameEngine.simpleMode = False
     
     # set whether this will be simulated or rely on online data 
-    useSimulatedData = True
-    useSimulatedDataPath = "GameSaves/Ashwin_24_01__13_20_2min.pkl"
+    useSimulatedData = False
+    useSimulatedDataPath = "GameSaves/Ashwin_24_01__13_44_2min.pkl"
     
     # set whether this will take user input through a pc or using the motive body tracking system
     userInputMethod = "bodyTracking" # either "PC" or "bodyTracking"
@@ -114,23 +114,31 @@ def initialiseGame():
     
 
     # set whether this will write data to file and set file location (set none if not writing data)
-    saveGameData = False
-    saveGameDataPath = "GameSaves/Ashwin_24_01__13_20_2min.pkl" # must be in format "Name_dd_mm__hh_mm_length" length is optional
+    saveGameData = True
+    saveGameDataPath = "GameSaves/Ashwin_06_02__11_21_decoder_trial.pkl" # must be in format "Name_dd_mm__hh_mm_length" length is optional
     txtFile = "test data updated" # can add a description here if needed
 
     # set calibrated to False so program starts in calibration mode, if not using real time data leave as None
     calibrated = False
 
 
+    # Import defined PCA components
 
+    gameEngine.pcaLocation = None   #"GameSaves/PCA_config.pkl"
+
+    # Run decoder in closed loop
+    runDecoderInClosedLoop = True
+    gameEngine.decoderLocation = "Decoders/Ashwin_29_01__12_00_J.pkl"
     
     # set all game configurations using a configuration class
-    gameEngine.config = Config(useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath
-                               )
+    gameEngine.config = Config(useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath,
+                        runDecoderInClosedLoop       )
 
     # show cursor predictor
     gameEngine.config.showPredictor = False
-    gameEngine.config.showPredictorLocation = "CursorPredictors/Ashwin_09_01_rigidBodyB.npz"
+    gameEngine.config.showPredictorLocation = None
+
+    gameEngine.useRotationsOnly = True
     return gameEngine 
 
 if __name__ == "__main__":

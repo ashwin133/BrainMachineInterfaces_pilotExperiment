@@ -7,8 +7,9 @@ import queue
 import math
 from multiprocessing import shared_memory
 import time
-from config_streaming import rigidBodyParts
+from config_streaming import rigidBodyParts, simpleBodyParts
 import pickle
+from scipy.ndimage import uniform_filter1d
 
 class GameStats():
     """
@@ -21,8 +22,8 @@ class Config():
     """
     Holds information about configuration of game chosen
     """
-    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath
-                 ):
+    def __init__(self,useSimulatedData, userInputMethod,saveGameData,saveGameDataPath,inputBodyPart,calibrated,txtFile,useSimulatedDataPath,
+                runDecoderInClosedLoop ):
         self.useSimulatedData = useSimulatedData
         self.userInputMethod = userInputMethod
         self.saveGameData = saveGameData
@@ -31,6 +32,7 @@ class Config():
         self.calibrated = calibrated
         self.txtFile = txtFile
         self.useSimulatedDataPath = useSimulatedDataPath
+        self.runDecoderInClosedLoop = runDecoderInClosedLoop
 
 
 
@@ -359,6 +361,7 @@ class Cursor:
             color (tuple): The color of the cursor in RGB.
 
         """
+        self.debugger = gameEngine.debugger
         self.controlMethod = controlMethod
         self.useImg = useImg
         self.rect = pygame.Rect(x, y, width, height)
@@ -387,18 +390,36 @@ class Cursor:
                 self.velocity_queue = queue.Queue(maxsize=delaySamples)
                 for _ in range(delaySamples):
                     self.velocity_queue.put([0,0])
-                #print(self.velocity_queue)
+    
+        
+        # Sets some configuration parameters if in body tracking mode ( controlling the game with the body)
         if gameEngine.config.userInputMethod  == "bodyTracking":
-            self.xRange = gameEngine.xRange
-            self.yRange = gameEngine.yRange
-            self.debugger = gameEngine.debugger
+
+            # Pass X and Y range for body movements to map to
+            self.xRange = gameEngine.screen_width
+            self.yRange = gameEngine.screen_height
+            
+            # Hard setting of the body controller type - as in all experiments this setting will be the same
             self.bodyController = "VelocityControlled"
+
+            # Record if calibration performed by principal component analysis (PCA)
+
             self.usePCA = gameEngine.performCalibrationUsingPrincipleComponent
+
+            # If calibration used PCA, pass the principal control rigid body components of both directions to the cursor
             if self.usePCA:
                 self.leftRightPCA = gameEngine.pcaleftRight
                 self.upDownPCA = gameEngine.pcaUpDown
                 self.xInvert = gameEngine.xInvert
                 self.yInvert = gameEngine.yInvert
+                self.xPCARange = gameEngine.xPCARange
+                self.yPCARange = gameEngine.yPCARange
+        
+            # Record if the cursor is going to be controlled by a decoder or the user's actual body movement
+            self.runDecoderInClosedLoop = gameEngine.config.runDecoderInClosedLoop
+
+            # Record if only using rotations
+            self.useRotationsOnly = gameEngine.useRotationsOnly
                 
 
     def update(self):
@@ -495,8 +516,11 @@ class Cursor:
 
     def handle_keys(self):
         """
-        Adjust the cursor's velocity based on key presses.
+        This function passes the control input to the cursor. Many different options are available.
+    
         """
+
+        # Pass data in through the keyboard
         if self.controlMethod == 'Keypad':
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT]:
@@ -509,6 +533,7 @@ class Cursor:
             if keys[pygame.K_DOWN]:
                 self.velocity[1] += self.acceleration  # Accelerate down
 
+        # Pass data in through the nouse
         elif self.controlMethod == 'Mouse':
             # Get current mouse position
             mouseX, mouseY = pygame.mouse.get_pos()
@@ -533,10 +558,11 @@ class Cursor:
             else:
                 self.velocity[0] += distanceX * 0.02
                 self.velocity[1] += distanceY * 0.02
-
+        
+        # Pass control input from looking at the body
         elif self.controlMethod == "bodyTracking":
                 
-
+                # Pass control inputs using control rigid body position (SHOULD NOT BE USED IN EXPERIMENT)
                 if self.bodyController == "PositionBased":
 
                     if self.usePCA:
@@ -550,17 +576,18 @@ class Cursor:
                     #print(normalised_y_Val)
                     self.rect.x = normalised_x_val * pygame.display.get_surface().get_width()
                     self.rect.y = normalised_y_Val * pygame.display.get_surface().get_height()
-                
+
+                # Pass control inputs using control rigid body position controller (SHOULD NOT BE USED IN EXPERIMENT)
                 elif self.bodyController == "DistanceErrorControlled":
                     if self.usePCA:
                         if self.xInvert:
-                            normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                            normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinXValue) / self.xRange
                         else:
-                            normalised_x_val =   (self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+                            normalised_x_val =   (self.leftRightPCA.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinXValue) / self.xRange
                         if self.yInvert:
-                            normalised_y_Val = ( self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                            normalised_y_Val = ( self.upDownPCA.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinYValue) / self.yRange
                         else:  
-                            normalised_y_Val = 1 - (self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+                            normalised_y_Val = 1 - (self.upDownPCA.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinYValue) / self.yRange
                     else:
                         normalised_x_val = 1 -  (self.controlPos[1] - self.userMinXValue) / self.xRange
                         normalised_y_Val = 1 - (self.controlPos[2] - self.userMinYValue) / self.yRange
@@ -574,26 +601,44 @@ class Cursor:
                     self.velocity[0] = distanceX * 0.06
                     self.velocity[1] = distanceY * 0.06
 
+                # Control cursor using velocity of rigid bodies
                 elif self.bodyController == "VelocityControlled":
-                   # Bug when replaying video
-                    if self.usePCA:
-                        if self.xInvert:
-                            normalised_x_val = 1 -  (  self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
-                        else:
-                            normalised_x_val =   (self.leftRightPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
-                        if self.yInvert:
-                            normalised_y_Val = ( self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
-                        else:  
-                            normalised_y_Val = 1 - (self.upDownPCA.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
-                    else:
-                        normalised_x_val = 1 -  (self.controlPos[1] - self.userMinXValue) / self.xRange
-                        normalised_y_Val = 1 - (self.controlPos[2] - self.userMinYValue) / self.yRange
+                   
+                    # Run decoder in closed loop using decoder's predictions
+                    if self.runDecoderInClosedLoop is True:
+                        self.velocity[0] = self.velXPred
+                        self.velocity[1] = self.velYPred
+                    
+                    # Applies PCA to the control body
+                    
 
+                    elif self.usePCA:
+                        if self.useRotationsOnly:
+                            self.controlData = self.controlPosAndDir[3:]
+                        else:
+                            self.controlData = self.controlPosAndDir
+
+                        if self.xInvert:
+                            normalised_x_val = 1 -  (self.leftRightPCA.transform(self.controlData.reshape(1,-1)) - self.userMinXValue) / self.xPCARange
+                        else:
+                            normalised_x_val = (self.leftRightPCA.transform(self.controlData.reshape(1,-1)) - self.userMinXValue) / self.xPCARange
+                        if self.yInvert:
+                            normalised_y_Val = ( self.upDownPCA.transform(self.controlData.reshape(1,-1)) - self.userMinYValue) / self.yPCARange
+                        else:  
+                            normalised_y_Val = 1 - (self.upDownPCA.transform(self.controlData.reshape(1,-1)) - self.userMinYValue) / self.yPCARange
+                        
+
+                        self.velocity[0] = (normalised_x_val-0.5) * 30
+                        self.velocity[1] = (normalised_y_Val - 0.5 )* 30
+                    else:
+                        normalised_x_val = 1 -  (self.controlPosAndDir[1] - self.userMinXValue) / self.xRange
+                        normalised_y_Val = 1 - (self.controlPosAndDir[2] - self.userMinYValue) / self.yRange
+                        self.velocity[0] = (normalised_x_val-0.5) * 30
+                        self.velocity[1] = (normalised_y_Val - 0.5 )* 30
                     # TODO: need to find new normalising constant for velocity from normalised x,y values
 
-                    self.velocity[0] = (normalised_x_val-0.5) * 30
-                    self.velocity[1] = (normalised_y_Val - 0.5 )* 30
-                    self.debugger.disp(3,'Velocity X',self.velocity[0],'Velocity Y', self.velocity[1], frequency = 30)
+                    
+                    self.debugger.disp(3,'Velocity X',self.velocity[0],'Velocity Y', self.velocity[1], frequency = 15)
 
 
 
@@ -868,17 +913,21 @@ class GameEngine():
             # Save velocity data if cursor is velocity controlled
             if self.cursor.bodyController == "VelocityControlled":
                 try:
-                    self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1][0][0]])
+                    self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1]])
+                    
                 except:
-                    if self.cursor.velocity == [0,0]:
-                        self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1]])
-                    elif self.cursor.velocity[0] == 0:
-                        self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1][0][0]])
-                    elif self.cursor.velocity[1] == 0:
-                        self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1]])
-                    else:
-                        print('debug')
-            
+                    try:
+
+                        if self.cursor.velocity == [0,0]:
+                            self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1]])
+                        elif self.cursor.velocity[0] == 0:
+                            self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0],self.cursor.velocity[1][0][0]])
+                        elif self.cursor.velocity[1] == 0:
+                            self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1]])
+                        else:
+                            self.cursorVelocityWriteDatastore.append([self.cursor.velocity[0][0][0],self.cursor.velocity[1][0][0]])
+                    except:
+                        print("EXCEPTION")
             # Save position data
             self.cursorPositionWriteDatastore.append([self.cursor.rect.x, self.cursor.rect.y])
     def enterCalibrationStage(self):
@@ -972,6 +1021,9 @@ class GameEngine():
         self.userMinYValue = 10000
 
     def performCalibrationStage(self):
+        if self.config.runDecoderInClosedLoop:
+            self.performCalibrationUsingPrincipleComponent = False
+            return
         self.performCalibrationUsingPrincipleComponent = True
 
         if self.performCalibrationUsingPrincipleComponent is not True:
@@ -986,26 +1038,52 @@ class GameEngine():
                 self.userMinYValue = min(self.controlPos[2],self.userMinYValue)
                 print('executed')
                 time.sleep(1/120)
-        elif self.performCalibrationUsingPrincipleComponent is True:
+        elif self.performCalibrationUsingPrincipleComponent is True and self.skipPCA is False:
             self.calibrateControlUsingPCA()
-            
- 
+        elif self.skipPCA is True:
+            self.userMinXValue = self.pcaleftRight.userMinXValue
+            self.userMinXValue = self.pcaleftRight.userMinXValue
+            self.xRange = self.pcaleftRight.xRange
+            self.xInvert = self.pcaleftRight.xInvert
+
+            # Calc rotation matrix that transforms components in previous rotation frame to current frame
+            Q_pca = np.linalg.inv(np.matmul(self.calibrationMatrix,np.linalg.inv(self.pcaleftRight.calibrationMatrix)))
+            self.pcaleftRight.components_[0][0:3] = np.matmul(Q_pca,self.pcaleftRight.components_[0][0:3])
+            self.pcaleftRight.components_[0][3:6] = np.matmul(Q_pca,self.pcaleftRight.components_[0][3:6])
+            self.pcaUpDown.components_[0][0:3] = np.matmul(Q_pca,self.pcaUpDown.components_[0][0:3])
+            self.pcaUpDown.components_[0][3:6] = np.matmul(Q_pca,self.pcaUpDown.components_[0][3:6])
+            # self.pcaUpDown.minY[0][0:3] = np.matmul(Q_pca,self.pcaUpDown.minY[0][0:3])
+            # self.pcaUpDown.maxY[0][0:3] = np.matmul(Q_pca,self.pcaUpDown.maxY[0][0:3])
+            # self.pcaleftRight.minX[0][0:3] = np.matmul(Q_pca,self.pcaleftRight.minX[0][0:3])
+            # self.pcaleftRight.maxX[0][0:3] = np.matmul(Q_pca,self.pcaleftRight.maxX[0][0:3])
+            # self.pcaUpDown.minY[0][3:6] = np.matmul(Q_pca,self.pcaUpDown.minY[0][3:6])
+            # self.pcaUpDown.maxY[0][3:6] = np.matmul(Q_pca,self.pcaUpDown.maxY[0][3:6])
+            # self.pcaleftRight.minX[0][3:6] = np.matmul(Q_pca,self.pcaleftRight.minX[0][3:6])
+            # self.pcaleftRight.maxX[0][3:6] = np.matmul(Q_pca,self.pcaleftRight.maxX[0][3:6])
+            self.userMinYValue = self.pcaUpDown.userMinYValue
+            self.userMinYValue = self.pcaUpDown.userMinYValue
+            self.yRange = self.pcaUpDown.yRange
+            self.yInvert = self.pcaUpDown.yInvert
+            self.calibrationLastRecording = 0
+            print("Using preset principal control components")
         # End calibration stage
         self.debugger.disp(2,'Calibration stage is now over')
         # TODO: add code to make calibration even with respect to far distance to middle?
 
-        # set range of control input based on user's movement range
-        self.xRange = self.userMaxXValue - self.userMinXValue
+        # # set range of control input based on user's movement range
+        # self.xRange = self.userMaxXValue - self.userMinXValue
 
         
-        self.yRange = self.userMaxYValue - self.userMinYValue
+        # self.yRange = self.userMaxYValue - self.userMinYValue
 
         self.config.calibrated = True
+        
      
     
     def calibrateControlUsingPCA(self):
         from sklearn.preprocessing import StandardScaler
         from sklearn.decomposition import PCA
+        
         # first calibrate right and left
         self.calibrationPos_rl = []
         self.calibrationDir_rl = []
@@ -1023,10 +1101,11 @@ class GameEngine():
 
         # collect data for left and right for 3.5 s
         
-
+        # Fetch live data to assess principal component
         if not self.config.useSimulatedData:
             self.lastLeftRightRecording = 0
             while pygame.time.get_ticks() <currTime + 3500:
+                
                 self.fetchSharedMemoryData()
                 # TODO: may need to adjust these for different rigid bodies
                 # as game x is typically the body y plane (right) and game y is the body z plane (up) 
@@ -1040,6 +1119,8 @@ class GameEngine():
                 
 
         elif self.config.useSimulatedData:
+
+            
             while self.controlBodyPartReadDatastoreIteration < self.lastLeftRightRecording + 1:
                 self.fetchSharedMemoryData()
                 # TODO: may need to adjust these for different rigid bodies
@@ -1053,15 +1134,26 @@ class GameEngine():
 
         
         # apply pca
-        
+
         self.calibrationPos_rl = np.asarray(self.calibrationPos_rl)
+        self.calibrationDir_rl = np.asarray(self.calibrationDir_rl)
+
+        self.calibration_rl = np.concatenate([self.calibrationPos_rl,self.calibrationDir_rl],axis = 1)
         #X_std = StandardScaler().fit_transform(self.calibrationPos_rl)
         pca = PCA(n_components=1)
-        x_pca = pca.fit_transform(self.calibrationPos_rl)
+        if self.useRotationsOnly:
+            # Only use rotation components to base PCA
+            self.calibrationDir_rl = uniform_filter1d(self.calibrationDir_rl, size=10, axis=0, mode='nearest')
+            x_pca = pca.fit_transform(self.calibrationDir_rl)
+        else:
+            # Use both pos and rotations
+            self.calibration_rl = uniform_filter1d(self.calibration_rl, size=10, axis=0, mode='nearest')
+            x_pca = pca.fit_transform(self.calibration_rl)
+
         self.userMinXValue = min(x_pca)
         self.userMaxXValue = max(x_pca)
         print(pca.explained_variance_ratio_)
-        self.xRange = self.userMaxXValue - self.userMinXValue
+        self.xPCARange = self.userMaxXValue - self.userMinXValue
         self.pcaleftRight = pca
 
         print("To assess the direction, please place your controller to the left")
@@ -1071,7 +1163,12 @@ class GameEngine():
         time.sleep(1)
         print('Calibrating...')
         self.fetchSharedMemoryData()
-        normalised_x_Val_min =  (self.pcaleftRight.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+        self.pcaleftRight.minX = self.controlPosAndDir.reshape(1,-1)
+        if self.useRotationsOnly:
+            normalised_x_Val_min =  (self.pcaleftRight.transform(self.controlPosAndDir[3:].reshape(1,-1)) - self.userMinXValue) / self.xPCARange
+        else:
+            normalised_x_Val_min =  (self.pcaleftRight.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinXValue) / self.xPCARange
+        
         print('Now move your controller right')
         print('Calibration will start in 2')
         time.sleep(1)
@@ -1079,7 +1176,13 @@ class GameEngine():
         time.sleep(1)
         print('Calibrating...')
         self.fetchSharedMemoryData()
-        normalised_x_Val_max =  (self.pcaleftRight.transform(self.controlPos.reshape(1,-1)) - self.userMinXValue) / self.xRange
+        self.pcaleftRight.maxX = self.controlPosAndDir.reshape(1,-1)
+
+        if self.useRotationsOnly:
+            normalised_x_Val_max =  (self.pcaleftRight.transform(self.controlPosAndDir[3:].reshape(1,-1)) - self.userMinXValue) / self.xPCARange
+        else:
+            normalised_x_Val_max =  (self.pcaleftRight.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinXValue) / self.xPCARange
+        
         if normalised_x_Val_min > normalised_x_Val_max:
             self.xInvert = True
         else:
@@ -1128,12 +1231,21 @@ class GameEngine():
                 # apply pca
         
         self.calibrationPos_rl = np.asarray(self.calibrationPos_rl)
+        self.calibrationDir_rl = np.asarray(self.calibrationDir_rl)
+        self.calibration_rl = np.concatenate([self.calibrationPos_rl,self.calibrationDir_rl],axis = 1)
         #X_std = StandardScaler().fit_transform(self.calibrationPos_rl)
         pca = PCA(n_components=1)
-        y_pca = pca.fit_transform(self.calibrationPos_rl)
+        if self.useRotationsOnly:
+            self.calibrationDir_rl = uniform_filter1d(self.calibrationDir_rl, size=10, axis=0, mode='nearest')
+            y_pca = pca.fit_transform(self.calibrationDir_rl)
+            
+        else:
+            self.calibration_rl = uniform_filter1d(self.calibration_rl, size=10, axis=0, mode='nearest')
+            y_pca = pca.fit_transform(self.calibration_rl)
+
         self.userMinYValue = min(y_pca)
         self.userMaxYValue = max(y_pca)
-        self.yRange = self.userMaxYValue - self.userMinYValue
+        self.yPCARange = self.userMaxYValue - self.userMinYValue
         self.pcaUpDown = pca
 
         
@@ -1144,7 +1256,12 @@ class GameEngine():
         time.sleep(1)
         print('Calibrating...')
         self.fetchSharedMemoryData()
-        normalised_y_Val_min =  (self.pcaUpDown.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+        self.pcaUpDown.minY = self.controlPosAndDir.reshape(1,-1)
+
+        if self.useRotationsOnly:
+            normalised_y_Val_min =  (self.pcaUpDown.transform(self.controlPosAndDir[3:].reshape(1,-1)) - self.userMinYValue) / self.yPCARange
+        else:
+            normalised_y_Val_min =  (self.pcaUpDown.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinYValue) / self.yPCARange
         print('Now move your hand up')
         print('Calibration will start in 2')
         time.sleep(1)
@@ -1152,7 +1269,13 @@ class GameEngine():
         time.sleep(1)
         print('Calibrating...')
         self.fetchSharedMemoryData()
-        normalised_y_Val_max =  (self.pcaUpDown.transform(self.controlPos.reshape(1,-1)) - self.userMinYValue) / self.yRange
+        self.pcaUpDown.maxY = self.controlPosAndDir.reshape(1,-1)
+        
+        if self.useRotationsOnly:
+            normalised_y_Val_max =  (self.pcaUpDown.transform(self.controlPosAndDir[3:].reshape(1,-1)) - self.userMinYValue) / self.yPCARange
+        else:
+            normalised_y_Val_max =  (self.pcaUpDown.transform(self.controlPosAndDir.reshape(1,-1)) - self.userMinYValue) / self.yPCARange
+
         if normalised_y_Val_min > normalised_y_Val_max:
             self.yInvert = True
         else:
@@ -1161,6 +1284,12 @@ class GameEngine():
         self.calibrationLastRecording = self.lastUpDownRecording + 2
         print("PCA based calibration has finished" )
 
+    def retrieveStoredPCA(self):
+        with open(self.pcaLocation, 'rb') as file:
+            pcaConfig = pickle.load(file)
+            self.pcaleftRight = pcaConfig[0]
+            self.pcaUpDown = pcaConfig[1]
+            self.skipPCA = True
 
     def calcCalibrationConstants(self,calibrationToVector, calibrationFromVector,position):
         """
@@ -1198,6 +1327,10 @@ class GameEngine():
         if self.config.useSimulatedData is not True: 
             shared_block = shared_memory.SharedMemory(size= self.sharedMemSize * 8, name=self.sharedMemName, create=False)
             shared_array = np.ndarray(shape=self.sharedMemShape, dtype=np.float64, buffer=shared_block.buf)
+            # This ensures the offset is removed from all rigid body data, which is crucial for training decoders
+            for i in simpleBodyParts:
+                    shared_array[i,:3] += self.offset
+            allBodyParts = shared_array[:,0:6].copy()
             controlBodyData = np.array(shared_array[self.controlBodyPartIdx])
 
             
@@ -1234,15 +1367,50 @@ class GameEngine():
         # Process the data 
 
         # both workflows have this adjustment
+        if self.config.runDecoderInClosedLoop is not True:
+            self.controlPos = np.matmul(self.calibrationMatrix,controlBodyData[0:3] + self.offset)
+            self.debugger.disp(3,'Control Pos', self.controlPos,frequency = 30)
+            self.controlDir = np.matmul(self.calibrationMatrix,controlBodyData[3:6])
+            self.controlPosAndDir = np.concatenate([self.controlPos,self.controlDir])
         
-        self.controlPos = np.matmul(self.calibrationMatrix,controlBodyData[0:3] + self.offset)
-        self.debugger.disp(3,'Control Pos', self.controlPos,frequency = 30)
-        self.controlDir = np.matmul(self.calibrationMatrix,controlBodyData[3:6])
-        
+        #
+        else:
+            # If the decoder offset has not been performed yet find the offset
+            if not hasattr(self, 'decoderOffset'):
+                self.decoderOffset = {}
+
+                # Also create a list of decoder predictions for debugging
+                self.decoderPredX = []
+                self.decoderPredY = []
+                # self.handPos1 = []
+                # self.handPos2 = []
+                # self.handPos3 = []
+
+                # Extract the X and Y velocity offset from the current calibrated velocity (which should be 0)
+                self.decoderOffset['X'], self.decoderOffset['Y'] = self.calculateDecodedValue(allBodyParts.copy())
+            
+            # we now use the decoder
+            self.cursor.velXPred,self.cursor.velYPred = self.calculateDecodedValue(allBodyParts.copy()) # CREATE THIS
+            
+            
+            # Append decoder positions for debugging
+            self.decoderPredX.append(self.cursor.velXPred)
+            self.decoderPredY.append(self.cursor.velYPred)
+            # Subtract X vel offset
+            #self.cursor.velXPred -= self.decoderOffset['X']
+
+            # Subtract Y vel offset
+            #self.cursor.velYPred -= self.decoderOffset['Y']
+
+            # Invert 
+            #self.cursor.velXPred = - self.cursor.velXPred
+            #self.cursor.velYPred = - self.cursor.velYPred
+
         # pass this to the cursor after calibration stage
         if self.config.calibrated is True:
             self.cursor.controlPos = self.controlPos
             self.cursor.controlDir = self.controlDir
+            self.cursor.controlPosAndDir = self.controlPosAndDir
             self.cursor.userMinYValue = self.userMinYValue
             self.cursor.userMaxYValue = self.userMaxYValue
             self.cursor.userMinXValue = self.userMinXValue
@@ -1252,7 +1420,31 @@ class GameEngine():
             
         
 
+    def calculateDecodedValue(self,sharedData):
+        # First extract DOF means
+        # object is stored in self.reg
 
+        # Extract rotations from only simple body parts, the data here is offset corrected 
+        prinicipalBodyRotations = sharedData[simpleBodyParts,3:]
+
+        # Need to calibrate data to correct plane orientation
+        prinicipalBodyRotations = np.tensordot(self.calibrationMatrix,prinicipalBodyRotations.transpose(),axes = ([1],[0])).transpose()
+
+
+        # Normalise principle body rotations and extract correct bodies
+        # NEED TO MAKE THIS FUNCTION
+        principalBodyRotationsNormalised = self.reg.normalise(self.reg,prinicipalBodyRotations)
+        
+        # # Append right hand rotations for debugging
+        # self.handPos1.append(rightHandRot[0])
+        # self.handPos2.append(rightHandRot[1])
+        # self.handPos3.append(rightHandRot[2])
+        
+        # Use model to make prediction
+        x,y = self.reg.predict(principalBodyRotationsNormalised.reshape(1,-1))[0]
+
+        # Return prediction
+        return x,y
 
     def spawnEnergyZones(self):
         # spawn an energy zone in 
