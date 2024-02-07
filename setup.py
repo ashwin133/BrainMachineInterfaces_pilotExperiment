@@ -60,6 +60,8 @@ def runGameSetup(gameEngine):
 
     # Define the variable you want to display
     gameEngine.gameStatistics.score = 0  # Example variable
+    gameEngine.gameStatistics.scoreEvolution = []
+    
 
     gameEngine.createMaze()
     

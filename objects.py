@@ -662,7 +662,8 @@ class Cursor:
                     self.is_frozen = True
                     self.last_hit_time = pygame.time.get_ticks()
                     self.color = self.frozenCursorColour
-                    gameEngine.gameStatistics.score -= 50
+                    gameEngine.gameStatistics.score -= 2
+                    self.gameStatistics.scoreEvolution.append(self.gameStatistics.score)
                     break
 
             elif pygame.Rect.colliderect(self.rect,wall.rect):
@@ -670,7 +671,8 @@ class Cursor:
                     self.is_frozen = True
                     self.last_hit_time = pygame.time.get_ticks()
                     self.color = self.frozenCursorColour
-                    gameEngine.gameStatistics.score -= 50
+                    gameEngine.gameStatistics.score -= 2
+                    self.gameStatistics.scoreEvolution.append(self.gameStatistics.score)
                     break
             
     def reset(self,gameEngine):
@@ -872,9 +874,12 @@ class GameEngine():
         self.readTargetGeneratedLocationsIteration = 0
 
         # to help ensure correct samples are used for calibration
-        self.lastLeftRightRecording = oldGameEngine.lastLeftRightRecording
-        self.lastUpDownRecording = oldGameEngine.lastUpDownRecording
-        self.forecastedEndTime = oldGameEngine.endTime
+        try:
+            self.lastLeftRightRecording = oldGameEngine.lastLeftRightRecording
+            self.lastUpDownRecording = oldGameEngine.lastUpDownRecording
+            self.forecastedEndTime = oldGameEngine.endTime
+        except: 
+            pass
 
     def initSharedMemory(self,sharedMemoryName,noDataTypes,noBodyParts):
         """
@@ -1587,12 +1592,14 @@ class GameEngine():
                 offset = (self.minions[idx].rect.x - self.cursor.rect.x, self.minions[idx].rect.y - self.cursor.rect.y)
                 if cursor_mask.overlap(minion_mask, offset):
                     # collision detected
-                    self.gameStatistics.score -= 50
+                    self.gameStatistics.score -= 5
+                    self.gameStatistics.scoreEvolution.append(self.gameStatistics.score)
                     del self.minions[idx]
 
             elif self.minions[idx].rect.colliderect(self.cursor.rect):
                 #self.targets[idx].color = self.colours['GREEN']
-                self.gameStatistics.score -= 50
+                self.gameStatistics.score -= 5
+                self.gameStatistics.scoreEvolution.append(self.gameStatistics.score)
                 del self.minions[idx]
 
 
@@ -1627,11 +1634,13 @@ class GameEngine():
                 offset = (target.rect.x - self.cursor.rect.x, target.rect.y - self.cursor.rect.y)
                 if cursor_mask.overlap(target_mask, offset):
                     # collision detected
-                    self.gameStatistics.score += 25
+                    self.gameStatistics.score += 10
+                    self.gameStatistics.scoreEvolution.append(self.gameStatistics.score)
                     del self.targets[idx]
             elif target.rect.colliderect(self.cursor.rect):
                 #self.targets[idx].color = self.colours['GREEN']
-                self.gameStatistics.score += 25
+                self.gameStatistics.score += 10
+                self.gameStatistics.scoreEvolution.append(self.gameStatistics.score)
                 del self.targets[idx]
                 break
 
